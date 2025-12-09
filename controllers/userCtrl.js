@@ -1,4 +1,5 @@
 const Users = require("../models/userModel");
+const { deleteImageByUrl } = require("../utils/cloudinary");
 
 const userCtrl = {
   searchUser: async (req, res) => {
@@ -45,6 +46,25 @@ const userCtrl = {
       } = req.body;
       if (!fullname) {
         return res.status(400).json({ msg: "Please add your full name." });
+      }
+
+      // Check and delete old images if they are being replaced
+      const currentUser = await Users.findById(req.user._id);
+
+      if (
+        avatar &&
+        avatar !== currentUser.avatar &&
+        currentUser.avatar.includes("cloudinary")
+      ) {
+        await deleteImageByUrl(currentUser.avatar);
+      }
+
+      if (
+        cover &&
+        cover !== currentUser.cover &&
+        currentUser.cover.includes("cloudinary")
+      ) {
+        await deleteImageByUrl(currentUser.cover);
       }
 
       await Users.findOneAndUpdate(

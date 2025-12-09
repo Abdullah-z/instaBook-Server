@@ -1,5 +1,6 @@
 const Conversations = require("../models/conversationModel");
 const Messages = require("../models/messageModel");
+const { deleteImage } = require("../utils/cloudinary");
 
 class APIfeatures {
   constructor(query, queryString) {
@@ -112,6 +113,21 @@ const messageCtrl = {
 
       if (!conversation) {
         return res.status(400).json({ msg: "Conversation not found" });
+      }
+
+      // Find messages with media in this conversation
+      const messagesWithMedia = await Messages.find({
+        conversation: conversation._id,
+        media: { $exists: true, $not: { $size: 0 } },
+      });
+
+      // Delete images from Cloudinary
+      for (const msg of messagesWithMedia) {
+        for (const mediaItem of msg.media) {
+          if (mediaItem.public_id) {
+            await deleteImage(mediaItem.public_id);
+          }
+        }
       }
 
       // Delete all messages in this conversation

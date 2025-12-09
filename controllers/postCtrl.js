@@ -1,6 +1,7 @@
 const Posts = require("../models/postModel");
 const Comments = require("../models/commentModel");
 const Users = require("../models/userModel");
+const { deleteImage } = require("../utils/cloudinary");
 
 class APIfeatures {
   constructor(query, queryString) {
@@ -238,12 +239,28 @@ const postCtrl = {
         user: req.user._id,
       });
 
+      if (!post) {
+        return res
+          .status(400)
+          .json({ msg: "Post not found or not authorized" });
+      }
+
       await Comments.deleteMany({ _id: { $in: post.comments } });
+
+      // Delete images from Cloudinary
+      if (post.images && post.images.length > 0) {
+        for (const image of post.images) {
+          // Check if image object has public_id
+          if (image.public_id) {
+            await deleteImage(image.public_id);
+          }
+        }
+      }
 
       res.json({
         msg: "Post deleted successfully.",
         newPost: {
-          ...post,
+          ...post._doc, // Access _doc to be safe with Mongoose document
           user: req.user,
         },
       });
