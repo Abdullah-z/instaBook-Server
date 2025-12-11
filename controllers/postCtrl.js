@@ -23,8 +23,8 @@ const postCtrl = {
     try {
       const { content, images } = req.body;
 
-      if (images.length === 0) {
-        return res.status(400).json({ msg: "Please add photo(s)" });
+      if (images.length === 0 && (!content || content.length === 0)) {
+        return res.status(400).json({ msg: "Please add photo(s) or content" });
       }
 
       const newPost = new Posts({
@@ -367,6 +367,7 @@ const postCtrl = {
       res.json({
         savePosts,
         result: savePosts.length,
+        savePosts,
       });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
