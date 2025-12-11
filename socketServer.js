@@ -1,11 +1,14 @@
 let users = [];
 let admins = [];
 
-
 const SocketServer = (socket) => {
   //#region //!Connection
   socket.on("joinUser", (id) => {
+    // Remove any existing connections for this user
+    users = users.filter((user) => user.id !== id);
+    // Add the new connection
     users.push({ id, socketId: socket.id });
+    console.log(`✅ User joined: ${id}, Total users: ${users.length}`);
   });
 
   socket.on("joinAdmin", (id) => {
@@ -17,8 +20,14 @@ const SocketServer = (socket) => {
   });
 
   socket.on("disconnect", () => {
+    const disconnectedUser = users.find((user) => user.socketId === socket.id);
     users = users.filter((user) => user.socketId !== socket.id);
     admins = admins.filter((user) => user.socketId !== socket.id);
+    if (disconnectedUser) {
+      console.log(
+        `❌ User disconnected: ${disconnectedUser.id}, Total users: ${users.length}`
+      );
+    }
   });
 
   //#endregion
@@ -113,12 +122,58 @@ const SocketServer = (socket) => {
 
   //#region //!Messages
 
+  //#region //!Online Status
+  socket.on("checkUserOnline", (id) => {
+    const isOnline = users.some((user) => user.id === id);
+    console.log(`🔍 Checking online status for ${id}: ${isOnline}`);
+    socket.emit("checkUserOnlineToClient", { id, isOnline });
+  });
+  //#endregion
+
+  //#region //!Call System
+  socket.on("callUser", (data) => {
+    console.log(`📞 Call request from ${data.from} to ${data.userToCall}`);
+    const clients = users.filter((user) => user.id === data.userToCall);
+    console.log(
+      `   Found ${clients.length} client(s) for user ${data.userToCall}`
+    );
+    if (clients.length > 0) {
+      clients.forEach((client) => {
+        socket.to(`${client.socketId}`).emit("callUserToClient", {
+          signal: data.signalData,
+          from: data.from,
+          name: data.name,
+        });
+        console.log(`   ✅ Call signal sent to ${client.socketId}`);
+      });
+    }
+  });
+
+  socket.on("answerCall", (data) => {
+    const clients = users.filter((user) => user.id === data.to);
+    if (clients.length > 0) {
+      clients.forEach((client) => {
+        socket.to(`${client.socketId}`).emit("callAccepted", data.signal);
+      });
+    }
+  });
+
+  socket.on("endCall", (data) => {
+    const clients = users.filter((user) => user.id === data.to);
+    if (clients.length > 0) {
+      clients.forEach((client) => {
+        socket.to(`${client.socketId}`).emit("endCallToClient");
+      });
+    }
+  });
+  //#endregion
+
   socket.on("addMessage", (msg) => {
-    const user = users.find(user => user.id === msg.recipient);
+    const user = users.find((user) => user.id === msg.recipient);
     user && socket.to(`${user.socketId}`).emit("addMessageToClient", msg);
   });
 
   //#endregion
-}
+};
 
 module.exports = SocketServer;
