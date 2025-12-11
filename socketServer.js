@@ -166,6 +166,16 @@ const SocketServer = (socket) => {
       });
     }
   });
+
+  socket.on("iceCandidate", (data) => {
+    console.log(`🧊 Forwarding ICE candidate to ${data.to}`);
+    const clients = users.filter((user) => user.id === data.to);
+    if (clients.length > 0) {
+      clients.forEach((client) => {
+        socket.to(`${client.socketId}`).emit("iceCandidate", data.candidate);
+      });
+    }
+  });
   //#endregion
 
   socket.on("addMessage", (msg) => {
