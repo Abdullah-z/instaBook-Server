@@ -200,7 +200,9 @@ const SocketServer = (socket) => {
 
   // Voice Call Events
   socket.on("voiceCallInitiate", (data) => {
-    console.log(`📞 Call initiated from ${data.callerName} to ${data.recipientName}`);
+    console.log(
+      `📞 Call initiated from ${data.callerName} to ${data.recipientName}`
+    );
     const recipient = users.find((user) => user.id === data.recipientId);
     if (recipient) {
       socket.to(`${recipient.socketId}`).emit("voiceCallIncoming", {
@@ -236,7 +238,9 @@ const SocketServer = (socket) => {
   });
 
   socket.on("voiceCallEnded", (data) => {
-    console.log(`📵 Call ended between ${data.callerId} and ${data.recipientId}`);
+    console.log(
+      `📵 Call ended between ${data.callerId} and ${data.recipientId}`
+    );
     const recipient = users.find((user) => user.id === data.callerId);
     if (recipient) {
       socket.to(`${recipient.socketId}`).emit("voiceCallEnded", {
