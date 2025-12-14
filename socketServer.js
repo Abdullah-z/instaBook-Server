@@ -9,6 +9,12 @@ const SocketServer = (socket) => {
     // Add the new connection
     users.push({ id, socketId: socket.id });
     console.log(`✅ User joined: ${id}, Total users: ${users.length}`);
+    
+    // Broadcast user online status to all connected clients
+    socket.broadcast.emit("userOnlineStatusChanged", {
+      userId: id,
+      isOnline: true,
+    });
   });
 
   socket.on("joinAdmin", (id) => {
@@ -27,6 +33,12 @@ const SocketServer = (socket) => {
       console.log(
         `❌ User disconnected: ${disconnectedUser.id}, Total users: ${users.length}`
       );
+      
+      // Broadcast user offline status to all connected clients
+      socket.broadcast.emit("userOnlineStatusChanged", {
+        userId: disconnectedUser.id,
+        isOnline: false,
+      });
     }
   });
 
