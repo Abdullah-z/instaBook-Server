@@ -198,6 +198,54 @@ const SocketServer = (socket) => {
   });
   //#endregion
 
+  // Voice Call Events
+  socket.on("voiceCallInitiate", (data) => {
+    console.log(`📞 Call initiated from ${data.callerName} to ${data.recipientName}`);
+    const recipient = users.find((user) => user.id === data.recipientId);
+    if (recipient) {
+      socket.to(`${recipient.socketId}`).emit("voiceCallIncoming", {
+        callerId: data.callerId,
+        callerName: data.callerName,
+        recipientId: data.recipientId,
+        recipientName: data.recipientName,
+        timestamp: data.timestamp,
+      });
+    }
+  });
+
+  socket.on("voiceCallAccepted", (data) => {
+    console.log(`✅ Call accepted by ${data.recipientId}`);
+    const caller = users.find((user) => user.id === data.callerId);
+    if (caller) {
+      socket.to(`${caller.socketId}`).emit("voiceCallAccepted", {
+        callerId: data.callerId,
+        recipientId: data.recipientId,
+      });
+    }
+  });
+
+  socket.on("voiceCallRejected", (data) => {
+    console.log(`❌ Call rejected by ${data.recipientId}`);
+    const caller = users.find((user) => user.id === data.callerId);
+    if (caller) {
+      socket.to(`${caller.socketId}`).emit("voiceCallRejected", {
+        callerId: data.callerId,
+        recipientId: data.recipientId,
+      });
+    }
+  });
+
+  socket.on("voiceCallEnded", (data) => {
+    console.log(`📵 Call ended between ${data.callerId} and ${data.recipientId}`);
+    const recipient = users.find((user) => user.id === data.callerId);
+    if (recipient) {
+      socket.to(`${recipient.socketId}`).emit("voiceCallEnded", {
+        callerId: data.callerId,
+        recipientId: data.recipientId,
+      });
+    }
+  });
+
   socket.on("addMessage", (msg) => {
     const user = users.find((user) => user.id === msg.recipient);
     user && socket.to(`${user.socketId}`).emit("addMessageToClient", msg);
