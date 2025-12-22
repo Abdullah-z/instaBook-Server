@@ -170,9 +170,12 @@ const postCtrl = {
       ).paginating();
       const posts = await features.query.sort("-createdAt");
 
+      const totalPosts = await Posts.countDocuments({ user: req.params.id });
+
       res.json({
         posts,
         result: posts.length,
+        totalPosts,
       });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
