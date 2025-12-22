@@ -42,6 +42,7 @@ app.use("/api", require("./routes/adminRouter"));
 app.use("/api", require("./routes/notifyRouter"));
 app.use("/api", require("./routes/messageRouter"));
 app.use("/api", require("./routes/agoraRouter"));
+app.use("/api", require("./routes/listingRouter"));
 
 // MongoDB Connection
 const URI = process.env.MONGODB_URL;
