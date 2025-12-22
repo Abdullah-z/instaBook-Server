@@ -1,5 +1,7 @@
 const Listings = require("../models/listingModel");
 
+const { deleteImageByUrl } = require("../utils/cloudinary");
+
 const listingCtrl = {
   createListing: async (req, res) => {
     try {
@@ -85,6 +87,29 @@ const listingCtrl = {
         phone,
       } = req.body;
 
+      // Find existing listing first
+      const oldListing = await Listings.findOne({
+        _id: req.params.id,
+        user: req.user._id,
+      });
+
+      if (!oldListing)
+        return res
+          .status(400)
+          .json({ msg: "Listing not found or unauthorized." });
+
+      // Find images that were removed
+      const oldImages = oldListing.images || [];
+      const newImages = images || [];
+      const removedImages = oldImages.filter((img) => !newImages.includes(img));
+
+      // Delete removed images from Cloudinary
+      if (removedImages.length > 0) {
+        for (const imgUrl of removedImages) {
+          await deleteImageByUrl(imgUrl);
+        }
+      }
+
       const listing = await Listings.findOneAndUpdate(
         { _id: req.params.id, user: req.user._id },
         {
@@ -99,11 +124,6 @@ const listingCtrl = {
         },
         { new: true }
       ).populate("user", "avatar username fullname");
-
-      if (!listing)
-        return res
-          .status(400)
-          .json({ msg: "Listing not found or unauthorized." });
 
       res.json({
         msg: "Updated Listing!",
@@ -124,6 +144,13 @@ const listingCtrl = {
         return res
           .status(400)
           .json({ msg: "Listing not found or unauthorized." });
+
+      // Delete all images associated with this listing
+      if (listing.images && listing.images.length > 0) {
+        for (const imgUrl of listing.images) {
+          await deleteImageByUrl(imgUrl);
+        }
+      }
 
       res.json({ msg: "Deleted Listing!" });
     } catch (err) {
