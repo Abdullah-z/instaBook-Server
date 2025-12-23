@@ -1,10 +1,10 @@
-const router = require('express').Router();
-const auth = require('../middleware/auth');
-const userCtrl = require('../controllers/userCtrl');
+const router = require("express").Router();
+const auth = require("../middleware/auth");
+const userCtrl = require("../controllers/userCtrl");
 
-router.get('/search', auth, userCtrl.searchUser);
+router.get("/search", auth, userCtrl.searchUser);
 
-router.get('/user/:id', auth, userCtrl.getUser);
+router.get("/user/:id", auth, userCtrl.getUser);
 
 router.patch("/user", auth, userCtrl.updateUser);
 
@@ -13,8 +13,6 @@ router.patch("/user/:id/unfollow", auth, userCtrl.unfollow);
 
 router.get("/suggestionsUser", auth, userCtrl.suggestionsUser);
 
-
-
-
+router.post("/user/push_token", auth, userCtrl.savePushToken);
 
 module.exports = router;
