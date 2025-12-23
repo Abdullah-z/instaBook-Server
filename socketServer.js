@@ -22,7 +22,7 @@ const sendPushNotification = async (targetUserId, title, body, data) => {
 
     if (!Expo.isExpoPushToken(user.pushToken)) {
       console.error(
-        `Push token ${user.pushToken} is not a valid Expo push token`
+        `❌ ERROR: Push token ${user.pushToken} is not a valid Expo push token for user ${user.username}`
       );
       return;
     }
@@ -89,7 +89,7 @@ const sendPushNotification = async (targetUserId, title, body, data) => {
       }, 15000);
     }
   } catch (error) {
-    console.error("Error sending push notification:", error);
+    console.error("❌ CRITICAL ERROR in sendPushNotification:", error);
   }
 };
 
@@ -323,6 +323,10 @@ const SocketServer = (socket) => {
         sound: "ringtone.mp3",
       }
     );
+
+    console.log(
+      `push sent for voice call to ${data.recipientId} with sound: ringtone.mp3`
+    );
   });
 
   socket.on("voiceCallAccepted", (data) => {
@@ -385,6 +389,7 @@ const SocketServer = (socket) => {
           senderId: msg.sender._id,
         }
       );
+      console.log(`push sent for message to ${msg.recipient}`);
     }
   });
 
