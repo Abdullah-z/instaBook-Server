@@ -9,7 +9,16 @@ const expo = new Expo();
 const sendPushNotification = async (targetUserId, title, body, data) => {
   try {
     const user = await Users.findById(targetUserId);
-    if (!user || !user.pushToken) return;
+    if (!user || !user.pushToken) {
+      console.log(
+        `⚠️ Push failed: User ${targetUserId} not found or has no token`
+      );
+      return;
+    }
+
+    console.log(
+      `🚀 Preparing push for ${user.username}, Token: ${user.pushToken}`
+    );
 
     if (!Expo.isExpoPushToken(user.pushToken)) {
       console.error(
@@ -26,6 +35,7 @@ const sendPushNotification = async (targetUserId, title, body, data) => {
         body,
         data,
         priority: "high",
+        channelId: "default",
       },
     ];
 
