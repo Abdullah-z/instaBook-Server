@@ -78,6 +78,18 @@ const userCtrl = {
     }
   },
 
+  savePushToken: async (req, res) => {
+    try {
+      const { pushToken } = req.body;
+
+      await Users.findOneAndUpdate({ _id: req.user._id }, { pushToken });
+
+      res.json({ msg: "Push token saved successfully." });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+
   follow: async (req, res) => {
     try {
       const user = await Users.find({
