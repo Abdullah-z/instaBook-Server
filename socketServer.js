@@ -40,12 +40,53 @@ const sendPushNotification = async (targetUserId, title, body, data) => {
     ];
 
     const chunks = expo.chunkPushNotifications(messages);
+    const tickets = [];
     for (const chunk of chunks) {
       try {
-        await expo.sendPushNotificationsAsync(chunk);
+        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+        console.log(`✅ Push sent, tickets:`, ticketChunk);
+        tickets.push(...ticketChunk);
       } catch (error) {
-        console.error("Error sending push notification chunk", error);
+        console.error("❌ Error sending push notification chunk", error);
       }
+    }
+
+    // Check receipts after 15 seconds
+    if (tickets.length > 0) {
+      setTimeout(async () => {
+        try {
+          const receiptIds = tickets
+            .filter((ticket) => ticket.id)
+            .map((ticket) => ticket.id);
+
+          if (receiptIds.length > 0) {
+            const receiptIdChunks =
+              expo.chunkPushNotificationReceiptIds(receiptIds);
+            for (const chunk of receiptIdChunks) {
+              const receipts = await expo.getPushNotificationReceiptsAsync(
+                chunk
+              );
+              console.log(
+                "📬 Push receipts:",
+                JSON.stringify(receipts, null, 2)
+              );
+
+              // Log any errors
+              for (const receiptId in receipts) {
+                const { status, message, details } = receipts[receiptId];
+                if (status === "error") {
+                  console.error(
+                    `❌ Push failed for ${user.username}: ${message}`,
+                    details
+                  );
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("❌ Error checking push receipts:", error);
+        }
+      }, 15000);
     }
   } catch (error) {
     console.error("Error sending push notification:", error);
