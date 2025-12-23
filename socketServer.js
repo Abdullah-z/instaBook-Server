@@ -1,5 +1,46 @@
+const { Expo } = require("expo-server-sdk");
+const Users = require("./models/userModel");
+
 let users = [];
 let admins = [];
+
+const expo = new Expo();
+
+const sendPushNotification = async (targetUserId, title, body, data) => {
+  try {
+    const user = await Users.findById(targetUserId);
+    if (!user || !user.pushToken) return;
+
+    if (!Expo.isExpoPushToken(user.pushToken)) {
+      console.error(
+        `Push token ${user.pushToken} is not a valid Expo push token`
+      );
+      return;
+    }
+
+    const messages = [
+      {
+        to: user.pushToken,
+        sound: "default",
+        title,
+        body,
+        data,
+        priority: "high",
+      },
+    ];
+
+    const chunks = expo.chunkPushNotifications(messages);
+    for (const chunk of chunks) {
+      try {
+        await expo.sendPushNotificationsAsync(chunk);
+      } catch (error) {
+        console.error("Error sending push notification chunk", error);
+      }
+    }
+  } catch (error) {
+    console.error("Error sending push notification:", error);
+  }
+};
 
 const SocketServer = (socket) => {
   //#region //!Connection
@@ -211,8 +252,24 @@ const SocketServer = (socket) => {
         recipientId: data.recipientId,
         recipientName: data.recipientName,
         timestamp: data.timestamp,
+        callerAvatar: data.callerAvatar,
       });
     }
+
+    // Always attempt to send push notification for calls
+    // (The client should handle deduplication if app is already open)
+    sendPushNotification(
+      data.recipientId,
+      "Incoming Call",
+      `${data.callerName} is calling you...`,
+      {
+        type: "VOICE_CALL",
+        callerId: data.callerId,
+        callerName: data.callerName,
+        callerAvatar: data.callerAvatar,
+        recipientId: data.recipientId,
+      }
+    );
   });
 
   socket.on("voiceCallAccepted", (data) => {
@@ -252,7 +309,30 @@ const SocketServer = (socket) => {
 
   socket.on("addMessage", (msg) => {
     const user = users.find((user) => user.id === msg.recipient);
-    user && socket.to(`${user.socketId}`).emit("addMessageToClient", msg);
+    if (user) {
+      socket.to(`${user.socketId}`).emit("addMessageToClient", msg);
+    } else {
+      // Send push notification if user is NOT connected via socket
+      // (This assumes socket connection means "online" and "viewing app")
+      // You might ideally want to send push if they are not in that specific chat room,
+      // but tracking that is harder. For now, offline only or always.
+      // Let's go with: if not in `users` array (offline), send push.
+
+      const messageText =
+        msg.text ||
+        (msg.media && msg.media.length > 0 ? "Sent a photo" : "New message");
+
+      sendPushNotification(
+        msg.recipient,
+        `New message from ${msg.sender.username}`,
+        messageText,
+        {
+          type: "MESSAGE",
+          conversationId: msg.conversation, // Assuming msg has conversation ID
+          senderId: msg.sender._id,
+        }
+      );
+    }
   });
 
   //#endregion
