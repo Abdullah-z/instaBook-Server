@@ -66,6 +66,10 @@ const userSchema = new Schema(
       type: String,
       default: "",
     },
+    pushToken: {
+      type: String,
+      default: "",
+    },
     followers: [
       {
         type: mongoose.Types.ObjectId,
