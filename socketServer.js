@@ -30,12 +30,12 @@ const sendPushNotification = async (targetUserId, title, body, data) => {
     const messages = [
       {
         to: user.pushToken,
-        sound: "default",
+        sound: data.sound || "default",
         title,
         body,
         data,
         priority: "high",
-        channelId: "default",
+        channelId: data.channelId || "default",
       },
     ];
 
@@ -319,6 +319,8 @@ const SocketServer = (socket) => {
         callerName: data.callerName,
         callerAvatar: data.callerAvatar,
         recipientId: data.recipientId,
+        channelId: "voice_call",
+        sound: "ringtone.mp3",
       }
     );
   });
