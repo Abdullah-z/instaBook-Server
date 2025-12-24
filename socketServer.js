@@ -304,6 +304,7 @@ const SocketServer = (socket) => {
         recipientName: data.recipientName,
         timestamp: data.timestamp,
         callerAvatar: data.callerAvatar,
+        isVideo: data.isVideo,
       });
     }
 
@@ -311,7 +312,7 @@ const SocketServer = (socket) => {
     // (The client should handle deduplication if app is already open)
     sendPushNotification(
       data.recipientId,
-      "Incoming Call",
+      data.isVideo ? "Incoming Video Call" : "Incoming Call",
       `${data.callerName} is calling you...`,
       {
         type: "VOICE_CALL",
@@ -321,6 +322,7 @@ const SocketServer = (socket) => {
         recipientId: data.recipientId,
         channelId: "voice_call",
         sound: "ringtone.mp3",
+        isVideo: data.isVideo,
       }
     );
 
@@ -336,6 +338,7 @@ const SocketServer = (socket) => {
       socket.to(`${caller.socketId}`).emit("voiceCallAccepted", {
         callerId: data.callerId,
         recipientId: data.recipientId,
+        isVideo: data.isVideo,
       });
     }
   });
