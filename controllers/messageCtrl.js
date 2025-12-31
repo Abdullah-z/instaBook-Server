@@ -20,8 +20,28 @@ class APIfeatures {
 const messageCtrl = {
   createMessage: async (req, res) => {
     try {
-      const { recipient, text, media } = req.body;
-      if (!recipient || (!text.trim() && media.length === 0)) return;
+      const { recipient, text, media, call } = req.body;
+      if (
+        !recipient ||
+        (!text?.trim() && (!media || media.length === 0) && !call)
+      )
+        return;
+
+      let conversationText = text;
+      if (!conversationText && call) {
+        statusText =
+          call.status === "missed"
+            ? "Missed"
+            : call.status === "rejected"
+            ? "Declined"
+            : "";
+        conversationText = `${statusText} ${
+          call.video ? "video" : "voice"
+        } call`.trim();
+        // Capitalize first letter
+        conversationText =
+          conversationText.charAt(0).toUpperCase() + conversationText.slice(1);
+      }
 
       const newConversation = await Conversations.findOneAndUpdate(
         {
@@ -32,7 +52,7 @@ const messageCtrl = {
         },
         {
           recipients: [req.user._id, recipient],
-          text,
+          text: conversationText,
           media,
         },
         { new: true, upsert: true }
@@ -44,6 +64,7 @@ const messageCtrl = {
         recipient,
         text,
         media,
+        call,
       });
 
       await newMessage.save();
