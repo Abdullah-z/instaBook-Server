@@ -235,6 +235,53 @@ const postCtrl = {
     }
   },
 
+  getReels: async (req, res) => {
+    try {
+      // Find posts where images array has an item with resource_type: 'video' OR url ends with .mp4
+      // We'll just grab random ones for now or latest
+      const posts = await Posts.aggregate([
+        {
+          $match: {
+            images: {
+              $elemMatch: {
+                $or: [{ resource_type: "video" }, { url: { $regex: /mp4$/i } }],
+              },
+            },
+          },
+        },
+        { $sample: { size: 10 } }, // Random 10 reels
+        {
+          $lookup: {
+            from: "users",
+            localField: "user",
+            foreignField: "_id",
+            as: "user",
+          },
+        },
+        { $unwind: "$user" },
+        {
+          $project: {
+            "user.password": 0,
+            "user.role": 0,
+            "user.gender": 0,
+            "user.mobile": 0,
+            "user.address": 0,
+            "user.website": 0,
+            "user.email": 0, // hide email
+          },
+        },
+      ]);
+
+      res.json({
+        msg: "Success",
+        result: posts.length,
+        posts,
+      });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+
   deletePost: async (req, res) => {
     try {
       const post = await Posts.findOneAndDelete({
