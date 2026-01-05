@@ -33,8 +33,8 @@ const listingSchema = new mongoose.Schema(
 // Create 2dsphere index for location queries
 listingSchema.index({ location: "2dsphere" });
 
-// Create TTL index to delete posts 24 hours after they are marked as sold
-// Note: deleteAt will be set when isSold is set to true
-listingSchema.index({ deleteAt: 1 }, { expireAfterSeconds: 0 });
+// TTL Index REMOVED to allow manual cleanup of images before deletion.
+// listingSchema.index({ deleteAt: 1 }, { expireAfterSeconds: 0 });
+listingSchema.index({ deleteAt: 1 }); // Standard index for efficient querying
 
 module.exports = mongoose.model("listing", listingSchema);

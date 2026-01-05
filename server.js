@@ -54,6 +54,39 @@ mongoose
   .then(() => console.log("Database Connected!!"))
   .catch((err) => console.log("DB Connection Error:", err));
 
+// Scheduled Task: Cleanup Sold Listings (Every Minute)
+const Listings = require("./models/listingModel");
+const { deleteImageByUrl } = require("./utils/cloudinary");
+
+setInterval(async () => {
+  try {
+    const expiredListings = await Listings.find({
+      deleteAt: { $lte: new Date() },
+    });
+
+    if (expiredListings.length > 0) {
+      console.log(
+        `🧹 Found ${expiredListings.length} expired listings to cleanup.`
+      );
+
+      for (const listing of expiredListings) {
+        // Delete images from Cloudinary
+        if (listing.images && listing.images.length > 0) {
+          for (const imgUrl of listing.images) {
+            await deleteImageByUrl(imgUrl);
+          }
+        }
+
+        // Delete listing from DB
+        await Listings.findByIdAndDelete(listing._id);
+        console.log(`✅ Cleaned up listing: ${listing.name} (${listing._id})`);
+      }
+    }
+  } catch (err) {
+    console.error("Error in scheduled cleanup:", err);
+  }
+}, 60 * 1000); // Run every minute
+
 // Start server
 const port = process.env.PORT || 8080;
 http.listen(port, () => {

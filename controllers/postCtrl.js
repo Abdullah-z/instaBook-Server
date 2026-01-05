@@ -302,7 +302,7 @@ const postCtrl = {
         for (const image of post.images) {
           // Check if image object has public_id
           if (image.public_id) {
-            await deleteImage(image.public_id);
+            await deleteImage(image.public_id, image.resource_type || "image");
           }
         }
       }
