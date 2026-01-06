@@ -32,13 +32,17 @@ const deleteImageByUrl = async (url) => {
   if (!url) return;
 
   try {
+    console.log(`Attempting to delete image from Cloudinary: ${url}`);
     // Expected format: https://res.cloudinary.com/[cloud_name]/image/upload/v[version]/[public_id].[ext]
     // or just .../upload/[public_id].[ext]
+    // The public_id can also contain slashes if images are in folders.
     const regex = /\/upload\/(?:v\d+\/)?(.+)\./;
     const match = url.match(regex);
 
     if (match && match[1]) {
       const public_id = match[1];
+      console.log(`Extracted public_id: ${public_id}`);
+
       // Try deleting as image first
       const result = await deleteImage(public_id, "image");
 

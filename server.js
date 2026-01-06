@@ -70,6 +70,7 @@ setInterval(async () => {
       );
 
       for (const listing of expiredListings) {
+        console.log(`Processing listing: ${listing.name} (${listing._id})`);
         // Delete images from Cloudinary
         if (listing.images && listing.images.length > 0) {
           for (const imgUrl of listing.images) {
@@ -77,9 +78,14 @@ setInterval(async () => {
           }
         }
 
-        // Delete listing from DB
-        await Listings.findByIdAndDelete(listing._id);
-        console.log(`✅ Cleaned up listing: ${listing.name} (${listing._id})`);
+        // Keep listing in DB but clear images and reset deleteAt
+        await Listings.findByIdAndUpdate(listing._id, {
+          images: [],
+          deleteAt: null,
+        });
+        console.log(
+          `✅ Cleaned up images for listing: ${listing.name} (${listing._id}). Record kept in DB.`
+        );
       }
     }
   } catch (err) {
