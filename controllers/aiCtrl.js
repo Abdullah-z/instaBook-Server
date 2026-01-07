@@ -32,19 +32,19 @@ const aiCtrl = {
 
       console.log("🤖 Requesting Gemini response (Deep Resilient Mode)...");
 
-      // 2. Wide variety of model IDs to bypass 404 errors
+      // 2. Wide variety of model IDs based on diagnostic success
       const modelsToTry = [
-        "gemini-1.5-flash-latest",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-exp",
         "gemini-1.5-flash",
-        "gemini-pro",
-        "gemini-1.5-pro",
-        "gemini-1.5-flash-001",
-        "gemini-1.5-flash-002",
+        "gemini-2.5-flash",
       ];
 
       for (const modelId of modelsToTry) {
         try {
           console.log(`📡 Trying model: ${modelId}...`);
+          // The SDK expects the name without the "models/" prefix usually,
+          // but if that fails, the loop continues.
           const model = genAI.getGenerativeModel({ model: modelId });
           const chat = model.startChat({
             history: formattedHistory,
@@ -60,6 +60,21 @@ const aiCtrl = {
           }
         } catch (apiErr) {
           console.warn(`⚠️ ${modelId} failed: ${apiErr.message}`);
+
+          // Try with models/ prefix if the first one failed
+          if (!modelId.startsWith("models/")) {
+            try {
+              const prefixedId = `models/${modelId}`;
+              console.log(`📡 Retrying with prefix: ${prefixedId}...`);
+              const model = genAI.getGenerativeModel({ model: prefixedId });
+              const chat = model.startChat({ history: formattedHistory });
+              const result = await chat.sendMessage(currentMessage);
+              const text = result.response.text();
+              if (text) return text;
+            } catch (innerErr) {
+              console.warn(`⚠️ ${modelId} prefix retry failed.`);
+            }
+          }
           continue;
         }
       }
