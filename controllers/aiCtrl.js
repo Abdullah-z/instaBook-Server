@@ -9,39 +9,51 @@ const aiCtrl = {
       }
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       // Format history for @google/generative-ai
-      // It expects: [{ role: "user", parts: [{ text: "..." }] }, { role: "model", parts: [{ text: "..." }] }]
       const formattedHistory = history.map((msg) => ({
         role: msg.sender?.role === "ai_assistant" ? "model" : "user",
         parts: [{ text: msg.text }],
       }));
 
-      console.log("🤖 Requesting Gemini response (Stable SDK)...");
+      console.log("🤖 Requesting Gemini response (Resilient Mode)...");
 
-      const chat = model.startChat({
-        history: formattedHistory,
-      });
+      // List of model IDs to try in order
+      const modelsToTry = [
+        "gemini-1.5-flash",
+        "gemini-pro",
+        "gemini-1.5-pro",
+        "models/gemini-1.5-flash",
+        "models/gemini-pro",
+      ];
 
-      const result = await chat.sendMessage(currentMessage);
-      const response = await result.response;
-      const text = response.text();
+      for (const modelId of modelsToTry) {
+        try {
+          console.log(`📡 Attempting with model: ${modelId}...`);
+          const model = genAI.getGenerativeModel({ model: modelId });
+          const chat = model.startChat({
+            history: formattedHistory,
+          });
 
-      if (text) {
-        console.log("✅ Gemini success");
-        return text;
+          const result = await chat.sendMessage(currentMessage);
+          const response = await result.response;
+          const text = response.text();
+
+          if (text) {
+            console.log(`✅ Success with ${modelId}`);
+            return text;
+          }
+        } catch (apiErr) {
+          console.warn(`⚠️ Model ${modelId} failed: ${apiErr.message}`);
+          // If it's a 429 (Quota), we might want to stop entirely or wait,
+          // but for now, let's keep trying other models.
+          continue;
+        }
       }
 
-      return "I'm thinking, but I can't find the words right now.";
+      return "I'm having a hard time finding a model that works with your API key right now. Please check your AI console!";
     } catch (err) {
-      console.error("❌ Gemini API Error:", err.message);
-      if (err.message?.includes("429")) {
-        return "I'm a bit overwhelmed with requests! Please give me a minute to breathe.";
-      }
-      if (err.message?.includes("404")) {
-        return "I'm lost. It seems this model is not available for your key right now.";
-      }
+      console.error("❌ Gemini SDK Error:", err.message);
       return "I'm having some trouble connecting to my brain. Please try again later.";
     }
   },
