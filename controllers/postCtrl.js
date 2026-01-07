@@ -243,12 +243,15 @@ const postCtrl = {
   getUserPosts: async (req, res) => {
     try {
       const features = new APIfeatures(
-        Posts.find({ user: req.params.id }),
+        Posts.find({ user: req.params.id, isStory: { $ne: true } }),
         req.query
       ).paginating();
       const posts = await features.query.sort("-createdAt");
 
-      const totalPosts = await Posts.countDocuments({ user: req.params.id });
+      const totalPosts = await Posts.countDocuments({
+        user: req.params.id,
+        isStory: { $ne: true },
+      });
 
       res.json({
         posts,
