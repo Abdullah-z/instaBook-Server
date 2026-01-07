@@ -1,63 +1,47 @@
-const { GoogleGenAI } = require("@google/genai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const aiCtrl = {
   generateAIResponse: async (history, currentMessage) => {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        return "I'm sorry, my API key is not configured. Please check the server settings.";
+        return "I'm sorry, my Gemini API key is not configured. Please check the server settings.";
       }
 
-      const ai = new GoogleGenAI({ apiKey });
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      // Build context-aware prompt
-      const prompt =
-        history
-          .map(
-            (msg) =>
-              `${msg.sender?.role === "ai_assistant" ? "AI" : "User"}: ${
-                msg.text
-              }`
-          )
-          .join("\n") + `\nUser: ${currentMessage}\nAI:`;
+      // Format history for @google/generative-ai
+      // It expects: [{ role: "user", parts: [{ text: "..." }] }, { role: "model", parts: [{ text: "..." }] }]
+      const formattedHistory = history.map((msg) => ({
+        role: msg.sender?.role === "ai_assistant" ? "model" : "user",
+        parts: [{ text: msg.text }],
+      }));
 
-      console.log("🤖 Requesting Gemini response...");
+      console.log("🤖 Requesting Gemini response (Stable SDK)...");
 
-      // List of models to try in order of preference
-      // Using variety to overcome 404/429 issues on free tier
-      const modelsToTry = [
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-1.0-pro",
-        "gemini-2.0-flash-exp",
-      ];
+      const chat = model.startChat({
+        history: formattedHistory,
+      });
 
-      for (const modelId of modelsToTry) {
-        try {
-          console.log(`📡 Attempting with model: ${modelId}...`);
-          const result = await ai.models.generateContent({
-            model: modelId,
-            contents: prompt,
-          });
+      const result = await chat.sendMessage(currentMessage);
+      const response = await result.response;
+      const text = response.text();
 
-          // Extract text response
-          const responseText =
-            result.text || result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-          if (responseText) {
-            console.log(`✅ Success with ${modelId}`);
-            return responseText;
-          }
-        } catch (apiErr) {
-          console.warn(`⚠️ Model ${modelId} failed: ${apiErr.message}`);
-          // Continue to next model in loop
-          continue;
-        }
+      if (text) {
+        console.log("✅ Gemini success");
+        return text;
       }
 
-      return "I'm having a hard time finding a model to chat with. Please check your API key/quota.";
+      return "I'm thinking, but I can't find the words right now.";
     } catch (err) {
-      console.error("❌ Gemini SDK Error:", err.message);
+      console.error("❌ Gemini API Error:", err.message);
+      if (err.message?.includes("429")) {
+        return "I'm a bit overwhelmed with requests! Please give me a minute to breathe.";
+      }
+      if (err.message?.includes("404")) {
+        return "I'm lost. It seems this model is not available for your key right now.";
+      }
       return "I'm having some trouble connecting to my brain. Please try again later.";
     }
   },
