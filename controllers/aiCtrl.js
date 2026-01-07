@@ -28,7 +28,7 @@ const aiCtrl = {
           .join("\n") + `\nUser: ${currentMessage}\nAI:`;
 
       const result = await ai.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-1.5-flash",
         contents: prompt,
       });
 
