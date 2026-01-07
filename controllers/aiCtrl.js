@@ -1,53 +1,50 @@
-const OpenAI = require("openai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const aiCtrl = {
   generateAIResponse: async (history, currentMessage) => {
     try {
-      const apiKey = process.env.OPENAI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        return "I'm sorry, my ChatGPT API key is not configured. Please check the server settings.";
+        return "I'm sorry, my Gemini API key is not configured. Please check the server settings.";
       }
 
-      const openai = new OpenAI({ apiKey });
+      const genAI = new GoogleGenerativeAI(apiKey);
 
-      // Format history for OpenAI
-      // Roles: 'system', 'user', 'assistant'
-      const messages = [
-        {
-          role: "system",
-          content:
-            "You are a helpful AI Assistant in a social media app called Instabook. Keep your responses concise, friendly, and helpful.",
-        },
-        ...history.map((msg) => ({
-          role: msg.sender?.role === "ai_assistant" ? "assistant" : "user",
-          content: msg.text,
-        })),
-        { role: "user", content: currentMessage },
-      ];
+      // We use gemini-1.5-flash as it is the most robust free-tier model
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      console.log("🤖 Requesting ChatGPT response...");
+      // Format history: [{ role: "user", parts: [{ text: "..." }] }, { role: "model", parts: [{ text: "..." }] }]
+      const formattedHistory = history.map((msg) => ({
+        role: msg.sender?.role === "ai_assistant" ? "model" : "user",
+        parts: [{ text: msg.text || "" }],
+      }));
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini", // Very fast and reliable fallback
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 500,
+      console.log("🤖 Requesting Gemini response...");
+
+      const chat = model.startChat({
+        history: formattedHistory,
       });
 
-      const aiText = response.choices[0]?.message?.content;
+      const result = await chat.sendMessage(currentMessage);
+      const text = result.response.text();
 
-      if (aiText) {
-        console.log("✅ ChatGPT success");
-        return aiText;
+      if (text) {
+        console.log("✅ Gemini success");
+        return text;
       }
 
-      return "I'm having a hard time thinking right now. Please try again.";
+      return "I'm thinking, but I can't find the words right now.";
     } catch (err) {
-      console.error("❌ OpenAI API Error:", err.message);
+      console.error("❌ Gemini Error:", err.message);
+
       if (err.message?.includes("429")) {
-        return "I'm a bit busy right now (rate limit). Please try again in a few seconds!";
+        return "I've hit my free-tier limit for a moment! 🧘 Please try again in 60 seconds.";
       }
-      return "I couldn't connect to my ChatGPT brain. Please ensure OPENAI_API_KEY is correct in your settings.";
+      if (err.message?.includes("404")) {
+        return "It looks like this model isn't active on your API key yet. Please check Google AI Studio.";
+      }
+
+      return "I'm having some trouble connecting to my brain. Please try again later.";
     }
   },
 };
