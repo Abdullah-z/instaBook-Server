@@ -7,6 +7,8 @@ router
   .post(auth, postCtrl.createPost)
   .get(auth, postCtrl.getPosts);
 
+router.get("/stories", auth, postCtrl.getStories);
+
 router
   .route("/post/:id")
   .patch(auth, postCtrl.updatePost)

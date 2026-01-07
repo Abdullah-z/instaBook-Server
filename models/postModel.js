@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
-
 const postSchema = new Schema(
   {
     content: String,
@@ -31,11 +30,20 @@ const postSchema = new Schema(
         ref: "user",
       },
     ],
+    isStory: {
+      type: Boolean,
+      default: false,
+    },
+    expiresAt: {
+      type: Date,
+      index: { expires: 0 },
+    },
+      // I'll use the latter approach in the next step or correct it here.
+    },
   },
   {
     timestamps: true,
   }
 );
 
-
-module.exports = mongoose.model('post', postSchema);
+module.exports = mongoose.model("post", postSchema);

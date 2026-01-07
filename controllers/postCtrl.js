@@ -21,18 +21,45 @@ class APIfeatures {
 const postCtrl = {
   createPost: async (req, res) => {
     try {
-      const { content, images } = req.body;
+      const { content, images, postType = "feed" } = req.body;
 
       if (images.length === 0 && (!content || content.length === 0)) {
         return res.status(400).json({ msg: "Please add photo(s) or content" });
       }
 
-      const newPost = new Posts({
-        content,
-        images,
-        user: req.user._id,
-      });
-      await newPost.save();
+      const createFeedPost = async () => {
+        const newPost = new Posts({
+          content,
+          images,
+          user: req.user._id,
+          isStory: false,
+        });
+        await newPost.save();
+        return newPost;
+      };
+
+      const createStoryPost = async () => {
+        const newStory = new Posts({
+          content,
+          images,
+          user: req.user._id,
+          isStory: true,
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        });
+        await newStory.save();
+        return newStory;
+      };
+
+      let newPost;
+
+      if (postType === "feed") {
+        newPost = await createFeedPost();
+      } else if (postType === "story") {
+        newPost = await createStoryPost();
+      } else if (postType === "both") {
+        newPost = await createFeedPost();
+        await createStoryPost(); // Create story silently
+      }
 
       res.json({
         msg: "Post created successfully.",
@@ -51,6 +78,7 @@ const postCtrl = {
       const features = new APIfeatures(
         Posts.find({
           user: [...req.user.following, req.user._id],
+          isStory: { $ne: true }, // Exclude stories
         }),
         req.query
       ).paginating();
@@ -69,6 +97,56 @@ const postCtrl = {
         msg: "Success",
         result: posts.length,
         posts,
+      });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+
+  getStories: async (req, res) => {
+    try {
+      const followingIds = [...req.user.following, req.user._id];
+      // Find stories from users we follow (plus self) that haven't expired
+      // Note: check for isStory: true and expiresAt > now (handled by mongo TTL often, but good to be explicit query side too)
+      const stories = await Posts.find({
+        user: { $in: followingIds },
+        isStory: true,
+        expiresAt: { $gt: Date.now() },
+      })
+        .populate("user", "avatar username fullname")
+        .sort("-createdAt");
+
+      // Group stories by user
+      const groupedStories = stories.reduce((acc, story) => {
+        const userId = story.user._id.toString();
+        if (!acc[userId]) {
+          acc[userId] = {
+            user: story.user,
+            stories: [],
+          };
+        }
+        acc[userId].stories.push(story);
+        return acc;
+      }, {});
+
+      // Convert object to array
+      const result = Object.values(groupedStories);
+
+      // Put 'me' first if exists
+      const myId = req.user._id.toString();
+      const myStoriesIndex = result.findIndex(
+        (item) => item.user._id.toString() === myId
+      );
+
+      if (myStoriesIndex > -1) {
+        const [myStories] = result.splice(myStoriesIndex, 1);
+        result.unshift(myStories);
+      }
+
+      res.json({
+        msg: "Success",
+        result: result.length,
+        stories: result,
       });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
@@ -237,8 +315,11 @@ const postCtrl = {
 
   getReels: async (req, res) => {
     try {
+      const page = req.query.page * 1 || 1;
+      const limit = req.query.limit * 1 || 10;
+      const skip = (page - 1) * limit;
+
       // Find posts where images array has an item with resource_type: 'video' OR url ends with .mp4
-      // We'll just grab random ones for now or latest
       const posts = await Posts.aggregate([
         {
           $match: {
@@ -249,7 +330,9 @@ const postCtrl = {
             },
           },
         },
-        { $sample: { size: 10 } }, // Random 10 reels
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
         {
           $lookup: {
             from: "users",
