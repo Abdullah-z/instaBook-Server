@@ -4,6 +4,7 @@ const messageCtrl = require("../controllers/messageCtrl");
 
 router.post("/message", auth, messageCtrl.createMessage);
 router.post("/group", auth, messageCtrl.createGroup);
+router.patch("/group/:id", auth, messageCtrl.updateGroup);
 
 router.get("/conversations", auth, messageCtrl.getConversations);
 

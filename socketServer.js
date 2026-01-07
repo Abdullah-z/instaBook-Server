@@ -1,5 +1,6 @@
 const { Expo } = require("expo-server-sdk");
 const Users = require("./models/userModel");
+const Conversations = require("./models/conversationModel");
 
 let users = [];
 let admins = [];
@@ -367,32 +368,69 @@ const SocketServer = (socket) => {
     }
   });
 
-  socket.on("addMessage", (msg) => {
-    const user = users.find((user) => user.id === msg.recipient);
-    if (user) {
-      socket.to(`${user.socketId}`).emit("addMessageToClient", msg);
-    } else {
-      // Send push notification if user is NOT connected via socket
-      // (This assumes socket connection means "online" and "viewing app")
-      // You might ideally want to send push if they are not in that specific chat room,
-      // but tracking that is harder. For now, offline only or always.
-      // Let's go with: if not in `users` array (offline), send push.
+  socket.on("addMessage", async (msg) => {
+    try {
+      if (msg.conversation) {
+        // Group Chat: Fetch conversation to get recipients
+        const conversation = await Conversations.findById(msg.conversation);
+        if (conversation) {
+          const recipients = conversation.recipients;
+          recipients.forEach((recipientId) => {
+            // Don't send back to sender
+            if (recipientId.toString() === msg.sender._id.toString()) return;
 
-      const messageText =
-        msg.text ||
-        (msg.media && msg.media.length > 0 ? "Sent a photo" : "New message");
+            const user = users.find((u) => u.id === recipientId.toString());
+            if (user) {
+              socket.to(`${user.socketId}`).emit("addMessageToClient", msg);
+            } else {
+              // Push Notification for offline group members
+              const messageText =
+                msg.text ||
+                (msg.media && msg.media.length > 0
+                  ? "Sent a photo"
+                  : "New message");
 
-      sendPushNotification(
-        msg.recipient,
-        `New message from ${msg.sender.username}`,
-        messageText,
-        {
-          type: "MESSAGE",
-          conversationId: msg.conversation, // Assuming msg has conversation ID
-          senderId: msg.sender._id,
+              sendPushNotification(
+                recipientId.toString(),
+                `${msg.sender.username} in ${
+                  conversation.groupName || "Group"
+                }`,
+                messageText,
+                {
+                  type: "MESSAGE",
+                  conversationId: msg.conversation,
+                  senderId: msg.sender._id,
+                }
+              );
+            }
+          });
         }
-      );
-      console.log(`push sent for message to ${msg.recipient}`);
+      } else {
+        // 1-on-1 Chat
+        const user = users.find((user) => user.id === msg.recipient);
+        if (user) {
+          socket.to(`${user.socketId}`).emit("addMessageToClient", msg);
+        } else {
+          const messageText =
+            msg.text ||
+            (msg.media && msg.media.length > 0
+              ? "Sent a photo"
+              : "New message");
+
+          sendPushNotification(
+            msg.recipient,
+            `New message from ${msg.sender.username}`,
+            messageText,
+            {
+              type: "MESSAGE",
+              conversationId: msg.conversation,
+              senderId: msg.sender._id,
+            }
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Socket addMessage Error:", err);
     }
   });
 

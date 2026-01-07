@@ -234,6 +234,38 @@ const messageCtrl = {
       return res.status(500).json({ msg: err.message });
     }
   },
+  updateGroup: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { groupName, groupAvatar, recipients } = req.body;
+
+      // Find group and check permissions (assuming only admins can update for now, or anyone in group)
+      // For simplicity, letting any member update or just admins. Let's stick to members.
+      const conversation = await Conversations.findOne({
+        _id: id,
+        isGroup: true,
+        recipients: req.user._id,
+      });
+
+      if (!conversation)
+        return res.status(400).json({ msg: "Group not found" });
+
+      if (groupName) conversation.groupName = groupName;
+      if (groupAvatar) conversation.groupAvatar = groupAvatar;
+      if (recipients) {
+        // Ensure current user is still in recipients if not explicitly removed logic handled by frontend
+        // Or simpler: recipients list replaces old list.
+        // Let's assume recipients contains the NEW full list of members.
+        conversation.recipients = recipients;
+      }
+
+      await conversation.save();
+
+      res.json({ msg: "Update Success!", conversation });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
 };
 
 module.exports = messageCtrl;
