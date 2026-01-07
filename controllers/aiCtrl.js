@@ -23,46 +23,41 @@ const aiCtrl = {
 
       console.log("🤖 Requesting Gemini response...");
 
-      // Try 2.0 Flash first, fallback to 1.5 Flash
-      const modelId = "gemini-2.0-flash-exp";
+      // List of models to try in order of preference
+      // Using variety to overcome 404/429 issues on free tier
+      const modelsToTry = [
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.0-pro",
+        "gemini-2.0-flash-exp",
+      ];
 
-      try {
-        const result = await ai.models.generateContent({
-          model: modelId,
-          contents: prompt,
-        });
-
-        // The @google/genai SDK usually returns text directly on the result object
-        // but let's check for candidates/parts just in case
-        const responseText =
-          result.text || result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (responseText) return responseText;
-
-        console.warn("⚠️ Empty response from AI:", JSON.stringify(result));
-        return "I'm thinking, but I can't find the words right now.";
-      } catch (apiErr) {
-        console.warn(`⚠️ Model ${modelId} failed:`, apiErr.message);
-
-        // Fallback to 1.5 Flash if 2.0 fails
-        if (modelId !== "gemini-1.5-flash") {
-          const fallbackResult = await ai.models.generateContent({
-            model: "gemini-1.5-flash",
+      for (const modelId of modelsToTry) {
+        try {
+          console.log(`📡 Attempting with model: ${modelId}...`);
+          const result = await ai.models.generateContent({
+            model: modelId,
             contents: prompt,
           });
-          return (
-            fallbackResult.text ||
-            fallbackResult.candidates?.[0]?.content?.parts?.[0]?.text ||
-            "I'm a bit overwhelmed. Try again later!"
-          );
+
+          // Extract text response
+          const responseText =
+            result.text || result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+          if (responseText) {
+            console.log(`✅ Success with ${modelId}`);
+            return responseText;
+          }
+        } catch (apiErr) {
+          console.warn(`⚠️ Model ${modelId} failed: ${apiErr.message}`);
+          // Continue to next model in loop
+          continue;
         }
-        throw apiErr;
       }
+
+      return "I'm having a hard time finding a model to chat with. Please check your API key/quota.";
     } catch (err) {
-      console.error("❌ Gemini AI Error:", err.message);
-      if (err.message?.includes("429")) {
-        return "I'm getting too many requests! Give me a minute to breathe.";
-      }
+      console.error("❌ Gemini SDK Error:", err.message);
       return "I'm having some trouble connecting to my brain. Please try again later.";
     }
   },
