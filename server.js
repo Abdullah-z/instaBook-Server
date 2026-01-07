@@ -54,23 +54,27 @@ mongoose
   })
   .then(async () => {
     console.log("Database Connected!!");
-    // Seed AI Assistant
+    // Seed AI Assistant with STABLE ID
     const Users = require("./models/userModel");
     const bcrypt = require("bcrypt");
-    const aiUser = await Users.findOne({ role: "ai_assistant" });
-    if (!aiUser) {
-      const hashedPassword = await bcrypt.hash("ai_assistant_secure_pass", 12);
-      const newAiUser = new Users({
-        fullname: "AI Assistant",
+
+    const hashedPassword = await bcrypt.hash("ai_assistant_secure_pass", 12);
+
+    // Use findOneAndUpdate to ensure we ALWAYS use the same AI user ID
+    await Users.findOneAndUpdate(
+      { email: "ai@instabook.com" }, // Find by unique email
+      {
+        fullname: "AI Assistant ✨",
         username: "ai_assistant",
         email: "ai@instabook.com",
         password: hashedPassword,
         role: "ai_assistant",
         avatar: "https://cdn-icons-png.flaticon.com/512/4712/4712035.png",
-      });
-      await newAiUser.save();
-      console.log("🤖 AI Assistant seeded successfully.");
-    }
+      },
+      { upsert: true, new: true } // Create if doesn't exist, reuse if exists
+    );
+
+    console.log("🤖 AI Assistant ready.");
   })
   .catch((err) => console.log("DB Connection Error:", err));
 
