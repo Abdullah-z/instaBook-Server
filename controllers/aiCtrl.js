@@ -8,103 +8,47 @@ const aiCtrl = {
         return "I'm sorry, my Gemini API key is not configured. Please check the server settings.";
       }
 
-      // Verify the key on Railway (safety log)
-      const keyPrefix = apiKey.substring(0, 4);
-      const keySuffix = apiKey.substring(apiKey.length - 4);
-      console.log(`🔑 AI Bot is using key: ${keyPrefix}...${keySuffix}`);
-
+      console.log(
+        `🔑 Using key: ${apiKey.substring(0, 6)}...${apiKey.substring(
+          apiKey.length - 4
+        )}`
+      );
       const genAI = new GoogleGenerativeAI(apiKey);
 
-      // 1. Clean and Format History
-      let formattedHistory = [];
-      if (history && history.length > 0) {
-        formattedHistory = history
-          .filter((msg) => msg.text && msg.text.trim().length > 0)
-          .map((msg) => ({
-            role: msg.sender?.role === "ai_assistant" ? "model" : "user",
-            parts: [{ text: msg.text }],
-          }));
-
-        // Gemini requires the first message to be from the 'user'
-        const firstUserIndex = formattedHistory.findIndex(
-          (h) => h.role === "user"
-        );
-        if (firstUserIndex !== -1) {
-          formattedHistory = formattedHistory.slice(firstUserIndex);
-        } else {
-          formattedHistory = [];
-        }
-      }
-
-      console.log(
-        `🤖 Requesting response (History: ${formattedHistory.length} messages)`
-      );
-
-      // 2. Models found in your diagnostic output + standard defaults
+      // Model IDs exactly as shown in your diagnostic output
       const modelsToTry = [
-        "gemini-2.0-flash", // Seen in diagnostic
-        "gemini-2.0-flash-exp", // Seen in diagnostic
-        "gemini-1.5-flash", // Standard
-        "gemini-pro", // Legacy Fallback
+        "models/gemini-2.0-flash",
+        "models/gemini-2.5-flash",
+        "models/gemini-2.0-flash-exp",
+        "gemini-2.0-flash", // Also try without prefix
+        "gemini-1.5-flash",
       ];
+
+      console.log("🤖 Requesting Gemini (Simplified Mode)...");
 
       for (const modelId of modelsToTry) {
         try {
-          console.log(`📡 Trying model: ${modelId}...`);
+          console.log(`📡 Trying: ${modelId}`);
           const model = genAI.getGenerativeModel({ model: modelId });
 
-          let responseText = "";
+          // Use simple generateContent (no chat history to avoid role errors)
+          const result = await model.generateContent(currentMessage);
+          const text = result.response.text();
 
-          // Try with history context first
-          try {
-            if (formattedHistory.length > 0) {
-              const chat = model.startChat({ history: formattedHistory });
-              const result = await chat.sendMessage(currentMessage);
-              responseText = result.response.text();
-            } else {
-              const result = await model.generateContent(currentMessage);
-              responseText = result.response.text();
-            }
-          } catch (chatErr) {
-            // If chat/history session fails, try a direct single-turn generation
-            console.warn(
-              `⚠️ Chat session failed for ${modelId}, trying direct generation: ${chatErr.message}`
-            );
-            const result = await model.generateContent(currentMessage);
-            responseText = result.response.text();
+          if (text) {
+            console.log(`✅ SUCCESS with ${modelId}!`);
+            return text;
           }
-
-          if (responseText) {
-            console.log(`✅ Success with ${modelId}!`);
-            return responseText;
-          }
-        } catch (apiErr) {
-          console.warn(`❌ Model ${modelId} failed: ${apiErr.message}`);
-
-          // One last attempt with the full 'models/' prefix if it failed
-          if (!modelId.startsWith("models/")) {
-            try {
-              const prefixedId = `models/${modelId}`;
-              console.log(`📡 Retrying with prefix: ${prefixedId}...`);
-              const model = genAI.getGenerativeModel({ model: prefixedId });
-              const result = await model.generateContent(currentMessage);
-              responseText = result.response.text();
-              if (responseText) {
-                console.log(`✅ Success with ${prefixedId}!`);
-                return responseText;
-              }
-            } catch (innerErr) {
-              console.warn(`⚠️ Prefix retry failed for ${modelId}`);
-            }
-          }
-          continue; // Try next model in loop
+        } catch (err) {
+          console.warn(`⚠️ ${modelId} failed: ${err.message}`);
+          continue;
         }
       }
 
-      return "I'm still having a hard time finding a model that works with your account. Please check your Railway 'GEMINI_API_KEY' environment variable.";
+      return "I tried all available models but couldn't get a response. Please verify your API key has the Gemini API enabled in Google AI Studio.";
     } catch (err) {
-      console.error("❌ Gemini Controller Error:", err.message);
-      return "My brain is having a bit of a crisis. Please try again later.";
+      console.error("❌ Controller Error:", err.message);
+      return "Something went wrong. Please try again.";
     }
   },
 };
