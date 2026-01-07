@@ -51,7 +51,26 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => console.log("Database Connected!!"))
+  .then(async () => {
+    console.log("Database Connected!!");
+    // Seed AI Assistant
+    const Users = require("./models/userModel");
+    const bcrypt = require("bcrypt");
+    const aiUser = await Users.findOne({ role: "ai_assistant" });
+    if (!aiUser) {
+      const hashedPassword = await bcrypt.hash("ai_assistant_secure_pass", 12);
+      const newAiUser = new Users({
+        fullname: "AI Assistant",
+        username: "ai_assistant",
+        email: "ai@instabook.com",
+        password: hashedPassword,
+        role: "ai_assistant",
+        avatar: "https://cdn-icons-png.flaticon.com/512/4712/4712035.png",
+      });
+      await newAiUser.save();
+      console.log("🤖 AI Assistant seeded successfully.");
+    }
+  })
   .catch((err) => console.log("DB Connection Error:", err));
 
 // Scheduled Task: Cleanup Sold Listings (Every Minute)

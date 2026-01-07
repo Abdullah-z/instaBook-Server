@@ -1,5 +1,6 @@
 const Conversations = require("../models/conversationModel");
 const Messages = require("../models/messageModel");
+const Users = require("../models/userModel");
 const { deleteImage } = require("../utils/cloudinary");
 
 class APIfeatures {
@@ -95,6 +96,45 @@ const messageCtrl = {
       });
 
       await newMessage.save();
+
+      // --- AI Assistant Logic ---
+      const recipientUser = await Users.findById(recipient);
+      if (recipientUser && recipientUser.role === "ai_assistant") {
+        const aiCtrl = require("./aiCtrl");
+        // Get recent history for context (last 10 messages)
+        const history = await Messages.find({
+          conversation: newConversation._id,
+        })
+          .sort("-createdAt")
+          .limit(10)
+          .populate("sender", "role");
+
+        const aiResponseText = await aiCtrl.generateAIResponse(
+          history.reverse(),
+          text
+        );
+
+        const aiMessage = new Messages({
+          conversation: newConversation._id,
+          sender: recipient, // AI Assistant
+          recipient: req.user._id,
+          text: aiResponseText,
+        });
+
+        await aiMessage.save();
+
+        // Update conversation with AI's reply
+        await Conversations.findByIdAndUpdate(newConversation._id, {
+          text: aiResponseText,
+        });
+
+        return res.json({
+          msg: "Created.",
+          newMessage,
+          aiMessage: { ...aiMessage._doc, sender: recipientUser },
+        });
+      }
+      // --------------------------
 
       res.json({ msg: "Created.", newMessage });
     } catch (err) {

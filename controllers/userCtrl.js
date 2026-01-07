@@ -179,6 +179,16 @@ const userCtrl = {
       return res.status(500).json({ msg: err.message });
     }
   },
+  getAIUser: async (req, res) => {
+    try {
+      const user = await Users.findOne({ role: "ai_assistant" }).select(
+        "-password"
+      );
+      res.json({ user });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
 };
 
 module.exports = userCtrl;

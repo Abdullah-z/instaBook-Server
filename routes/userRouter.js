@@ -14,5 +14,6 @@ router.patch("/user/:id/unfollow", auth, userCtrl.unfollow);
 router.get("/suggestionsUser", auth, userCtrl.suggestionsUser);
 
 router.post("/user/push_token", auth, userCtrl.savePushToken);
+router.get("/ai_user", auth, userCtrl.getAIUser);
 
 module.exports = router;
