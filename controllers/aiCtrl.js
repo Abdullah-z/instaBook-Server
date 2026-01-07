@@ -8,26 +8,31 @@ const aiCtrl = {
         return "I'm sorry, my API key is not configured. Please check the server settings.";
       }
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const { GoogleGenAI } = require("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
 
-      // Format history for Gemini
-      // Gemini history format: [{ role: "user", parts: [{ text: "hi" }] }, { role: "model", parts: [{ text: "hello" }] }]
-      const formattedHistory = history.map((msg) => ({
-        role: msg.sender.role === "ai_assistant" ? "model" : "user",
-        parts: [{ text: msg.text }],
-      }));
+      // Format history for @google/genai
+      // It expects an array of { role: 'user' | 'model', contents: [{ text: string }] } or similar
+      // Looking at frontend: contents is usually just the prompt.
+      // For chat, let's use a combined prompt for now if startChat isn't standard in this SDK
+      // Actually @google/genai is very new. Let's look at the frontend again.
 
-      const chat = model.startChat({
-        history: formattedHistory,
-        generationConfig: {
-          maxOutputTokens: 1000,
-        },
+      const prompt =
+        history
+          .map(
+            (msg) =>
+              `${msg.sender.role === "ai_assistant" ? "AI" : "User"}: ${
+                msg.text
+              }`
+          )
+          .join("\n") + `\nUser: ${currentMessage}\nAI:`;
+
+      const result = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: prompt,
       });
 
-      const result = await chat.sendMessage(currentMessage);
-      const response = await result.response;
-      return response.text();
+      return result.text;
     } catch (err) {
       console.error("Gemini AI Error:", err);
       return "I'm having trouble thinking right now. Please try again later.";
