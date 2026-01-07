@@ -38,8 +38,6 @@ const postSchema = new Schema(
       type: Date,
       index: { expires: 0 },
     },
-      // I'll use the latter approach in the next step or correct it here.
-    },
   },
   {
     timestamps: true,
