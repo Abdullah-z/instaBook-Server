@@ -381,7 +381,10 @@ const SocketServer = (socket) => {
 
             const user = users.find((u) => u.id === recipientId.toString());
             if (user) {
-              socket.to(`${user.socketId}`).emit("addMessageToClient", msg);
+              socket.to(`${user.socketId}`).emit("addMessageToClient", {
+                ...msg,
+                groupName: conversation.groupName,
+              });
             } else {
               // Push Notification for offline group members
               const messageText =
