@@ -20,13 +20,41 @@ class APIfeatures {
 const messageCtrl = {
   createMessage: async (req, res) => {
     try {
-      const { recipient, text, media, call } = req.body;
+      const { recipient, text, media, call, conversationId } = req.body;
       if (
-        !recipient ||
+        (!recipient && !conversationId) ||
         (!text?.trim() && (!media || media.length === 0) && !call)
       )
         return;
 
+      if (conversationId) {
+        // Group Message
+        const conversation = await Conversations.findById(conversationId);
+        if (!conversation)
+          return res.status(400).json({ msg: "Conversation not found" });
+
+        const newMessage = new Messages({
+          conversation: conversation._id,
+          sender: req.user._id,
+          text,
+          media,
+          call,
+        });
+
+        await newMessage.save();
+
+        await Conversations.findOneAndUpdate(
+          { _id: conversation._id },
+          {
+            text,
+            media,
+          }
+        );
+
+        return res.json({ msg: "Created.", newMessage });
+      }
+
+      // 1-on-1 Message
       let conversationText = text;
       if (!conversationText && call) {
         statusText =
@@ -38,7 +66,6 @@ const messageCtrl = {
         conversationText = `${statusText} ${
           call.video ? "video" : "voice"
         } call`.trim();
-        // Capitalize first letter
         conversationText =
           conversationText.charAt(0).toUpperCase() + conversationText.slice(1);
       }
@@ -69,7 +96,30 @@ const messageCtrl = {
 
       await newMessage.save();
 
-      res.json({ msg: "Created." });
+      res.json({ msg: "Created.", newMessage });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+
+  createGroup: async (req, res) => {
+    try {
+      const { groupName, recipients } = req.body;
+      if (recipients.length < 2)
+        return res
+          .status(400)
+          .json({ msg: "Group must have at least 2 other members." });
+
+      const newConversation = new Conversations({
+        recipients: [...recipients, req.user._id],
+        groupName,
+        isGroup: true,
+        admins: [req.user._id],
+        user: req.user._id,
+      });
+
+      await newConversation.save();
+      res.json({ conversation: newConversation });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
     }
@@ -99,17 +149,31 @@ const messageCtrl = {
 
   getMessages: async (req, res) => {
     try {
-      const features = new APIfeatures(
-        Messages.find({
+      // Check if id is a Group Conversation
+      const conversation = await Conversations.findOne({
+        _id: req.params.id,
+        isGroup: true,
+      });
+
+      let query;
+      if (conversation) {
+        // Fetch messages for this group conversation
+        query = Messages.find({ conversation: req.params.id });
+      } else {
+        // Fetch messages for 1-on-1 (req.params.id is userId)
+        query = Messages.find({
           $or: [
             { sender: req.user._id, recipient: req.params.id },
             { sender: req.params.id, recipient: req.user._id },
           ],
-        }),
-        req.query
-      ).paginating();
+        });
+      }
 
-      const messages = await features.query.sort("-createdAt");
+      const features = new APIfeatures(query, req.query).paginating();
+
+      const messages = await features.query
+        .sort("-createdAt")
+        .populate("sender", "avatar username fullname"); // Populate sender for groups
 
       res.json({
         messages,
@@ -124,16 +188,27 @@ const messageCtrl = {
     try {
       const { id } = req.params;
 
-      // Find and delete the conversation
-      const conversation = await Conversations.findOneAndDelete({
-        $or: [
-          { recipients: [req.user._id, id] },
-          { recipients: [id, req.user._id] },
-        ],
+      // Try to find group conversation first
+      let conversation = await Conversations.findOneAndDelete({
+        _id: id,
+        isGroup: true,
+        admins: req.user._id, // Only admin can delete group? Or just owner logic
       });
 
+      // If not group, try 1-on-1
       if (!conversation) {
-        return res.status(400).json({ msg: "Conversation not found" });
+        conversation = await Conversations.findOneAndDelete({
+          $or: [
+            { recipients: [req.user._id, id] },
+            { recipients: [id, req.user._id] },
+          ],
+        });
+      }
+
+      if (!conversation) {
+        return res
+          .status(400)
+          .json({ msg: "Conversation not found or not authorized" });
       }
 
       // Find messages with media in this conversation
