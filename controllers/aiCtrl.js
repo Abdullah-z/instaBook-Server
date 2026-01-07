@@ -1,4 +1,4 @@
-const { GoogleGenerativeAI } = require("@google/genai");
+const { GoogleGenAI } = require("@google/genai");
 
 const aiCtrl = {
   generateAIResponse: async (history, currentMessage) => {
@@ -8,34 +8,62 @@ const aiCtrl = {
         return "I'm sorry, my API key is not configured. Please check the server settings.";
       }
 
-      const { GoogleGenAI } = require("@google/genai");
       const ai = new GoogleGenAI({ apiKey });
 
-      // Format history for @google/genai
-      // It expects an array of { role: 'user' | 'model', contents: [{ text: string }] } or similar
-      // Looking at frontend: contents is usually just the prompt.
-      // For chat, let's use a combined prompt for now if startChat isn't standard in this SDK
-      // Actually @google/genai is very new. Let's look at the frontend again.
-
+      // Build context-aware prompt
       const prompt =
         history
           .map(
             (msg) =>
-              `${msg.sender.role === "ai_assistant" ? "AI" : "User"}: ${
+              `${msg.sender?.role === "ai_assistant" ? "AI" : "User"}: ${
                 msg.text
               }`
           )
           .join("\n") + `\nUser: ${currentMessage}\nAI:`;
 
-      const result = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: prompt,
-      });
+      console.log("🤖 Requesting Gemini response...");
 
-      return result.text;
+      // Try 2.0 Flash first, fallback to 1.5 Flash
+      const modelId = "gemini-2.0-flash-exp";
+
+      try {
+        const result = await ai.models.generateContent({
+          model: modelId,
+          contents: prompt,
+        });
+
+        // The @google/genai SDK usually returns text directly on the result object
+        // but let's check for candidates/parts just in case
+        const responseText =
+          result.text || result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (responseText) return responseText;
+
+        console.warn("⚠️ Empty response from AI:", JSON.stringify(result));
+        return "I'm thinking, but I can't find the words right now.";
+      } catch (apiErr) {
+        console.warn(`⚠️ Model ${modelId} failed:`, apiErr.message);
+
+        // Fallback to 1.5 Flash if 2.0 fails
+        if (modelId !== "gemini-1.5-flash") {
+          const fallbackResult = await ai.models.generateContent({
+            model: "gemini-1.5-flash",
+            contents: prompt,
+          });
+          return (
+            fallbackResult.text ||
+            fallbackResult.candidates?.[0]?.content?.parts?.[0]?.text ||
+            "I'm a bit overwhelmed. Try again later!"
+          );
+        }
+        throw apiErr;
+      }
     } catch (err) {
-      console.error("Gemini AI Error:", err);
-      return "I'm having trouble thinking right now. Please try again later.";
+      console.error("❌ Gemini AI Error:", err.message);
+      if (err.message?.includes("429")) {
+        return "I'm getting too many requests! Give me a minute to breathe.";
+      }
+      return "I'm having some trouble connecting to my brain. Please try again later.";
     }
   },
 };
