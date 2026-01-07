@@ -10,40 +10,59 @@ const aiCtrl = {
 
       const genAI = new GoogleGenerativeAI(apiKey);
 
-      // We use gemini-1.5-flash as it is the most robust free-tier model
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-      // Format history: [{ role: "user", parts: [{ text: "..." }] }, { role: "model", parts: [{ text: "..." }] }]
-      const formattedHistory = history.map((msg) => ({
+      // 1. Format history and FIX the "First role must be user" error
+      let formattedHistory = history.map((msg) => ({
         role: msg.sender?.role === "ai_assistant" ? "model" : "user",
         parts: [{ text: msg.text || "" }],
       }));
 
-      console.log("🤖 Requesting Gemini response...");
-
-      const chat = model.startChat({
-        history: formattedHistory,
-      });
-
-      const result = await chat.sendMessage(currentMessage);
-      const text = result.response.text();
-
-      if (text) {
-        console.log("✅ Gemini success");
-        return text;
+      // Find the first index where role is 'user'
+      const firstUserIndex = formattedHistory.findIndex(
+        (h) => h.role === "user"
+      );
+      if (firstUserIndex === -1) {
+        // No user messages in history yet, just send empty history
+        formattedHistory = [];
+      } else {
+        // Start history from the first user message
+        formattedHistory = formattedHistory.slice(firstUserIndex);
       }
 
-      return "I'm thinking, but I can't find the words right now.";
+      console.log("🤖 Requesting Gemini response (History fixed)...");
+
+      // 2. Try multiple model IDs because some accounts/keys have 404 issues with specific names
+      const modelsToTry = [
+        "gemini-1.5-flash",
+        "gemini-pro",
+        "gemini-1.5-flash-8b",
+        "gemini-1.5-pro",
+      ];
+
+      for (const modelId of modelsToTry) {
+        try {
+          console.log(`📡 Attempting with model: ${modelId}...`);
+          const model = genAI.getGenerativeModel({ model: modelId });
+          const chat = model.startChat({
+            history: formattedHistory,
+          });
+
+          const result = await chat.sendMessage(currentMessage);
+          const text = result.response.text();
+
+          if (text) {
+            console.log(`✅ Success with ${modelId}`);
+            return text;
+          }
+        } catch (apiErr) {
+          console.warn(`⚠️ Model ${modelId} failed: ${apiErr.message}`);
+          // Continue to next model
+          continue;
+        }
+      }
+
+      return "I'm having a hard time finding a model that works with your key. Please check your AI Studio settings.";
     } catch (err) {
-      console.error("❌ Gemini Error:", err.message);
-
-      if (err.message?.includes("429")) {
-        return "I've hit my free-tier limit for a moment! 🧘 Please try again in 60 seconds.";
-      }
-      if (err.message?.includes("404")) {
-        return "It looks like this model isn't active on your API key yet. Please check Google AI Studio.";
-      }
-
+      console.error("❌ Gemini SDK Error:", err.message);
       return "I'm having some trouble connecting to my brain. Please try again later.";
     }
   },
