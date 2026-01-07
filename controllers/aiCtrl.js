@@ -1,60 +1,53 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const OpenAI = require("openai");
 
 const aiCtrl = {
   generateAIResponse: async (history, currentMessage) => {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) {
-        return "I'm sorry, my Gemini API key is not configured. Please check the server settings.";
+        return "I'm sorry, my ChatGPT API key is not configured. Please check the server settings.";
       }
 
-      const genAI = new GoogleGenerativeAI(apiKey);
+      const openai = new OpenAI({ apiKey });
 
-      // Format history for @google/generative-ai
-      const formattedHistory = history.map((msg) => ({
-        role: msg.sender?.role === "ai_assistant" ? "model" : "user",
-        parts: [{ text: msg.text }],
-      }));
-
-      console.log("🤖 Requesting Gemini response (Resilient Mode)...");
-
-      // List of model IDs to try in order
-      const modelsToTry = [
-        "gemini-1.5-flash",
-        "gemini-pro",
-        "gemini-1.5-pro",
-        "models/gemini-1.5-flash",
-        "models/gemini-pro",
+      // Format history for OpenAI
+      // Roles: 'system', 'user', 'assistant'
+      const messages = [
+        {
+          role: "system",
+          content:
+            "You are a helpful AI Assistant in a social media app called Instabook. Keep your responses concise, friendly, and helpful.",
+        },
+        ...history.map((msg) => ({
+          role: msg.sender?.role === "ai_assistant" ? "assistant" : "user",
+          content: msg.text,
+        })),
+        { role: "user", content: currentMessage },
       ];
 
-      for (const modelId of modelsToTry) {
-        try {
-          console.log(`📡 Attempting with model: ${modelId}...`);
-          const model = genAI.getGenerativeModel({ model: modelId });
-          const chat = model.startChat({
-            history: formattedHistory,
-          });
+      console.log("🤖 Requesting ChatGPT response...");
 
-          const result = await chat.sendMessage(currentMessage);
-          const response = await result.response;
-          const text = response.text();
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini", // Very fast and reliable fallback
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 500,
+      });
 
-          if (text) {
-            console.log(`✅ Success with ${modelId}`);
-            return text;
-          }
-        } catch (apiErr) {
-          console.warn(`⚠️ Model ${modelId} failed: ${apiErr.message}`);
-          // If it's a 429 (Quota), we might want to stop entirely or wait,
-          // but for now, let's keep trying other models.
-          continue;
-        }
+      const aiText = response.choices[0]?.message?.content;
+
+      if (aiText) {
+        console.log("✅ ChatGPT success");
+        return aiText;
       }
 
-      return "I'm having a hard time finding a model that works with your API key right now. Please check your AI console!";
+      return "I'm having a hard time thinking right now. Please try again.";
     } catch (err) {
-      console.error("❌ Gemini SDK Error:", err.message);
-      return "I'm having some trouble connecting to my brain. Please try again later.";
+      console.error("❌ OpenAI API Error:", err.message);
+      if (err.message?.includes("429")) {
+        return "I'm a bit busy right now (rate limit). Please try again in a few seconds!";
+      }
+      return "I couldn't connect to my ChatGPT brain. Please ensure OPENAI_API_KEY is correct in your settings.";
     }
   },
 };
