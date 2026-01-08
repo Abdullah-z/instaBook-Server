@@ -3,7 +3,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const SocketServer = require("./socketServer");
+const { SocketServer, sendPushNotification } = require("./socketServer");
 
 const app = express();
 app.use(express.json());
@@ -77,6 +77,10 @@ mongoose
     console.log("🤖 AI Assistant ready.");
   })
   .catch((err) => console.log("DB Connection Error:", err));
+
+// Start the auction scheduler
+const startAuctionScheduler = require("./utils/auctionScheduler");
+startAuctionScheduler();
 
 // Scheduled Task: Cleanup Sold Listings (Every Minute)
 const Listings = require("./models/listingModel");

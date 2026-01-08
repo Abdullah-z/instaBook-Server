@@ -440,4 +440,4 @@ const SocketServer = (socket) => {
   //#endregion
 };
 
-module.exports = SocketServer;
+module.exports = { SocketServer, sendPushNotification };

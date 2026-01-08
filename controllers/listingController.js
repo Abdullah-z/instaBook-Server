@@ -1,4 +1,5 @@
 const Listings = require("../models/listingModel");
+const { sendPushNotification } = require("../socketServer");
 
 const { deleteImageByUrl } = require("../utils/cloudinary");
 
@@ -266,6 +267,38 @@ const listingCtrl = {
         updateData,
         { new: true }
       ).populate("user highestBidder", "avatar username fullname");
+
+      // Send push notifications to all previous bidders (except current bidder)
+      if (listing.bidHistory && listing.bidHistory.length > 0) {
+        // Extract unique bidder IDs (excluding the current bidder)
+        const uniqueBidders = [
+          ...new Set(
+            listing.bidHistory
+              .map((bid) => bid.user.toString())
+              .filter((userId) => userId !== req.user._id.toString())
+          ),
+        ];
+
+        // Send notification to each previous bidder
+        uniqueBidders.forEach(async (bidderId) => {
+          await sendPushNotification(
+            bidderId,
+            `New bid on "${listing.name}"`,
+            `Someone just bid $${amount}. Current highest bid: $${updatedListing.currentBid}`,
+            {
+              type: "NEW_BID",
+              listingId: listing._id.toString(),
+              listingName: listing.name,
+              newBid: amount,
+              currentBid: updatedListing.currentBid,
+            }
+          );
+        });
+
+        console.log(
+          `📣 Sent bid notifications to ${uniqueBidders.length} previous bidder(s) for listing: ${listing.name}`
+        );
+      }
 
       res.json({
         msg:

@@ -39,6 +39,7 @@ const listingSchema = new mongoose.Schema(
         time: { type: Date, default: Date.now },
       },
     ],
+    auctionCompleted: { type: Boolean, default: false },
   },
   {
     timestamps: true,
