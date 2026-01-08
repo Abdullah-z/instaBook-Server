@@ -47,8 +47,7 @@ const listingCtrl = {
   getListings: async (req, res) => {
     try {
       const listings = await Listings.find({
-        isSold: { $ne: true }, // Exclude sold listings
-        images: { $exists: true, $not: { $size: 0 } }, // Exclude listings with no images
+        images: { $exists: true, $not: { $size: 0 } }, // Only exclude when images are deleted
       })
         .sort("-createdAt")
         .populate("user", "avatar username fullname");
