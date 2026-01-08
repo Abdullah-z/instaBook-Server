@@ -269,7 +269,21 @@ const listingCtrl = {
       ).populate("user highestBidder", "avatar username fullname");
 
       // Send push notifications to all previous bidders (except current bidder)
+      console.log(`\n📧 Processing bid notifications for: ${listing.name}`);
+      console.log(
+        `   Current bidder: ${req.user._id.toString()} (${req.user.username})`
+      );
+      console.log(
+        `   Previous bid history length: ${listing.bidHistory?.length || 0}`
+      );
+
       if (listing.bidHistory && listing.bidHistory.length > 0) {
+        // Log all bidders in history
+        console.log(
+          `   All bidders in history:`,
+          listing.bidHistory.map((b) => b.user.toString())
+        );
+
         // Extract unique bidder IDs (excluding the current bidder)
         const uniqueBidders = [
           ...new Set(
@@ -278,6 +292,11 @@ const listingCtrl = {
               .filter((userId) => userId !== req.user._id.toString())
           ),
         ];
+
+        console.log(
+          `   Unique previous bidders (excluding current): ${uniqueBidders.length}`
+        );
+        console.log(`   Will notify:`, uniqueBidders);
 
         // Send notification to each previous bidder
         for (const bidderId of uniqueBidders) {
@@ -294,16 +313,21 @@ const listingCtrl = {
                 currentBid: updatedListing.currentBid,
               }
             );
+            console.log(`   ✅ Notified bidder: ${bidderId}`);
           } catch (error) {
             console.error(
-              `❌ Failed to send notification to bidder ${bidderId}:`,
+              `   ❌ Failed to send notification to bidder ${bidderId}:`,
               error
             );
           }
         }
 
         console.log(
-          `📣 Sent bid notifications to ${uniqueBidders.length} previous bidder(s) for listing: ${listing.name}`
+          `📣 Sent bid notifications to ${uniqueBidders.length} previous bidder(s) for listing: ${listing.name}\n`
+        );
+      } else {
+        console.log(
+          `   ⚠️ No previous bidders to notify (bidHistory is empty)\n`
         );
       }
 
