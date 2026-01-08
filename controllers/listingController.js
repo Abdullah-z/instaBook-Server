@@ -14,6 +14,8 @@ const listingCtrl = {
         address,
         location,
         phone,
+        listingType,
+        bidEndTime,
       } = req.body;
 
       if (images.length === 0)
@@ -90,6 +92,8 @@ const listingCtrl = {
         address,
         location,
         phone,
+        listingType,
+        bidEndTime,
       } = req.body;
 
       // Find existing listing first
@@ -126,6 +130,8 @@ const listingCtrl = {
           address,
           location,
           phone,
+          listingType,
+          bidEndTime,
         },
         { new: true }
       ).populate("user", "avatar username fullname");
