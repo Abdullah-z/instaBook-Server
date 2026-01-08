@@ -29,6 +29,9 @@ const listingCtrl = {
         address,
         location,
         phone,
+        listingType,
+        bidEndTime,
+        currentBid: 0,
       });
 
       await newListing.save();
@@ -205,6 +208,65 @@ const listingCtrl = {
         return res.status(400).json({ msg: "Listing does not exist." });
 
       res.json({ listing });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+  placeBid: async (req, res) => {
+    try {
+      const { amount } = req.body;
+      const listing = await Listings.findById(req.params.id);
+
+      if (!listing) return res.status(400).json({ msg: "Listing not found." });
+
+      if (listing.isSold)
+        return res.status(400).json({ msg: "Item already sold." });
+
+      if (listing.listingType === "Sell")
+        return res.status(400).json({ msg: "This item is not for bidding." });
+
+      if (listing.bidEndTime && new Date(listing.bidEndTime) < new Date()) {
+        return res.status(400).json({ msg: "Bidding has ended." });
+      }
+
+      if (amount <= listing.currentBid) {
+        return res
+          .status(400)
+          .json({ msg: "Bid must be higher than the current bid." });
+      }
+
+      if (amount > listing.price) {
+        return res
+          .status(400)
+          .json({ msg: "Bid cannot exceed the asking price." });
+      }
+
+      const updateData = {
+        currentBid: amount,
+        highestBidder: req.user._id,
+        $push: { bidHistory: { user: req.user._id, amount, time: new Date() } },
+      };
+
+      // If bid matches asking price, mark as sold
+      if (amount === listing.price) {
+        updateData.isSold = true;
+        updateData.soldAt = new Date();
+        updateData.deleteAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      }
+
+      const updatedListing = await Listings.findByIdAndUpdate(
+        req.params.id,
+        updateData,
+        { new: true }
+      ).populate("user highestBidder", "avatar username fullname");
+
+      res.json({
+        msg:
+          amount === listing.price
+            ? "Congratulations! You've bought the item."
+            : "Bid placed successfully!",
+        listing: updatedListing,
+      });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
     }

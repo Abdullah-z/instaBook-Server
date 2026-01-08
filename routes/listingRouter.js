@@ -16,5 +16,6 @@ router
   .delete(auth, listingCtrl.deleteListing);
 
 router.patch("/listings/:id/sold", auth, listingCtrl.markAsSold);
+router.patch("/listings/:id/bid", auth, listingCtrl.placeBid);
 
 module.exports = router;
