@@ -84,7 +84,8 @@ startAuctionScheduler();
 
 // Scheduled Task: Cleanup Sold Listings (Every Minute)
 const Listings = require("./models/listingModel");
-const { deleteImageByUrl } = require("./utils/cloudinary");
+const Posts = require("./models/postModel");
+const { deleteImageByUrl, deleteImage } = require("./utils/cloudinary");
 
 setInterval(async () => {
   try {
@@ -118,6 +119,47 @@ setInterval(async () => {
     }
   } catch (err) {
     console.error("Error in scheduled cleanup:", err);
+  }
+}, 60 * 1000); // Run every minute
+
+// Scheduled Task: Cleanup Expired Stories (Every Minute)
+setInterval(async () => {
+  try {
+    const expiredStories = await Posts.find({
+      isStory: true,
+      expiresAt: { $lte: new Date() },
+    });
+
+    if (expiredStories.length > 0) {
+      console.log(
+        `🧹 Found ${expiredStories.length} expired stories to cleanup.`
+      );
+
+      for (const story of expiredStories) {
+        console.log(`Processing story: ${story._id}`);
+        // Delete images/videos from Cloudinary
+        if (story.images && story.images.length > 0) {
+          for (const media of story.images) {
+            if (media.public_id) {
+              await deleteImage(
+                media.public_id,
+                media.resource_type || "image"
+              );
+            } else if (typeof media === "string") {
+              await deleteImageByUrl(media);
+            } else if (media.url) {
+              await deleteImageByUrl(media.url);
+            }
+          }
+        }
+
+        // Delete story from DB completely since it's a social post, not a marketplace listing
+        await Posts.findByIdAndDelete(story._id);
+        console.log(`✅ Deleted expired story and its media: ${story._id}`);
+      }
+    }
+  } catch (err) {
+    console.error("Error in story scheduled cleanup:", err);
   }
 }, 60 * 1000); // Run every minute
 
