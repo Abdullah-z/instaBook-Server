@@ -80,6 +80,14 @@ const sendPushNotification = async (targetUserId, title, body, data) => {
                     `❌ Push failed for ${user.username}: ${message}`,
                     details
                   );
+
+                  // Handle stale tokens
+                  if (details && details.error === "DeviceNotRegistered") {
+                    console.log(
+                      `🧹 Clearing stale push token for ${user.username} (DeviceNotRegistered)`
+                    );
+                    await Users.findByIdAndUpdate(user._id, { pushToken: "" });
+                  }
                 }
               }
             }
