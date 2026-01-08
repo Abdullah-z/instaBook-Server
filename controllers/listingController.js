@@ -55,7 +55,8 @@ const listingCtrl = {
         images: { $exists: true, $not: { $size: 0 } }, // Only exclude when images are deleted
       })
         .sort("-createdAt")
-        .populate("user", "avatar username fullname");
+        .populate("user", "avatar username fullname")
+        .populate("highestBidder", "avatar username fullname");
 
       res.json({
         msg: "Success!",
@@ -70,7 +71,8 @@ const listingCtrl = {
     try {
       const listings = await Listings.find({ user: req.user._id })
         .sort("-createdAt")
-        .populate("user", "avatar username fullname");
+        .populate("user", "avatar username fullname")
+        .populate("highestBidder", "avatar username fullname");
 
       res.json({
         msg: "Success!",
@@ -205,10 +207,9 @@ const listingCtrl = {
   },
   getListing: async (req, res) => {
     try {
-      const listing = await Listings.findById(req.params.id).populate(
-        "user",
-        "avatar username fullname"
-      );
+      const listing = await Listings.findById(req.params.id)
+        .populate("user", "avatar username fullname")
+        .populate("highestBidder", "avatar username fullname");
 
       if (!listing)
         return res.status(400).json({ msg: "Listing does not exist." });
