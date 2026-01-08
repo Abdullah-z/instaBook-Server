@@ -385,31 +385,29 @@ const SocketServer = (socket) => {
                 ...msg,
                 groupName: conversation.groupName,
               });
-            } else {
-              // Push Notification for offline group members
-              const messageText =
-                msg.text ||
-                (msg.media && msg.media.length > 0
-                  ? "Sent a photo"
-                  : "New message");
-
-              sendPushNotification(
-                recipientId.toString(),
-                `${msg.sender.username} in ${
-                  conversation.groupName || "Group"
-                }`,
-                messageText,
-                {
-                  type: "MESSAGE",
-                  conversationId: msg.conversation,
-                  senderId: msg.sender._id,
-                  senderName: msg.sender.username,
-                  senderAvatar: msg.sender.avatar,
-                  isGroup: true,
-                  groupName: conversation.groupName,
-                }
-              );
             }
+
+            // Push Notification for all group members (except sender)
+            const messageText =
+              msg.text ||
+              (msg.media && msg.media.length > 0
+                ? "Sent a photo"
+                : "New message");
+
+            sendPushNotification(
+              recipientId.toString(),
+              `${msg.sender.username} in ${conversation.groupName || "Group"}`,
+              messageText,
+              {
+                type: "MESSAGE",
+                conversationId: msg.conversation,
+                senderId: msg.sender._id,
+                senderName: msg.sender.username,
+                senderAvatar: msg.sender.avatar,
+                isGroup: true,
+                groupName: conversation.groupName,
+              }
+            );
           });
         }
       } else {
@@ -417,27 +415,25 @@ const SocketServer = (socket) => {
         const user = users.find((user) => user.id === msg.recipient);
         if (user) {
           socket.to(`${user.socketId}`).emit("addMessageToClient", msg);
-        } else {
-          const messageText =
-            msg.text ||
-            (msg.media && msg.media.length > 0
-              ? "Sent a photo"
-              : "New message");
-
-          sendPushNotification(
-            msg.recipient,
-            `New message from ${msg.sender.username}`,
-            messageText,
-            {
-              type: "MESSAGE",
-              conversationId: msg.conversation,
-              senderId: msg.sender._id,
-              senderName: msg.sender.username,
-              senderAvatar: msg.sender.avatar,
-              isGroup: false,
-            }
-          );
         }
+
+        const messageText =
+          msg.text ||
+          (msg.media && msg.media.length > 0 ? "Sent a photo" : "New message");
+
+        sendPushNotification(
+          msg.recipient,
+          `New message from ${msg.sender.username}`,
+          messageText,
+          {
+            type: "MESSAGE",
+            conversationId: msg.conversation,
+            senderId: msg.sender._id,
+            senderName: msg.sender.username,
+            senderAvatar: msg.sender.avatar,
+            isGroup: false,
+          }
+        );
       }
     } catch (err) {
       console.error("Socket addMessage Error:", err);
