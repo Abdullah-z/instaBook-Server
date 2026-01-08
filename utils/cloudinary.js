@@ -28,10 +28,16 @@ const deleteImage = async (public_id, resource_type = "image") => {
   }
 };
 
-const deleteImageByUrl = async (url) => {
-  if (!url) return;
+const deleteImageByUrl = async (urlOrObj) => {
+  if (!urlOrObj) return;
 
   try {
+    let url = typeof urlOrObj === "string" ? urlOrObj : urlOrObj.url;
+    if (!url) {
+      console.warn("No URL found in media object:", urlOrObj);
+      return;
+    }
+
     console.log(`Attempting to delete image from Cloudinary: ${url}`);
     // Expected format: https://res.cloudinary.com/[cloud_name]/image/upload/v[version]/[public_id].[ext]
     // or just .../upload/[public_id].[ext]

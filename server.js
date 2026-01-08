@@ -102,8 +102,15 @@ setInterval(async () => {
         console.log(`Processing listing: ${listing.name} (${listing._id})`);
         // Delete images from Cloudinary
         if (listing.images && listing.images.length > 0) {
-          for (const imgUrl of listing.images) {
-            await deleteImageByUrl(imgUrl);
+          for (const media of listing.images) {
+            if (media.public_id) {
+              await deleteImage(
+                media.public_id,
+                media.resource_type || "image"
+              );
+            } else {
+              await deleteImageByUrl(media);
+            }
           }
         }
 
