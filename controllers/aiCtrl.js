@@ -15,13 +15,13 @@ const aiCtrl = {
       );
       const genAI = new GoogleGenerativeAI(apiKey);
 
-      // Model IDs exactly as shown in your diagnostic output
+      // Model IDs - trying latest Gemini 2.5 Flash first for faster responses
       const modelsToTry = [
-        "models/gemini-2.0-flash",
-        "models/gemini-2.5-flash",
-        "models/gemini-2.0-flash-exp",
-        "gemini-2.0-flash", // Also try without prefix
-        "gemini-1.5-flash",
+        "models/gemini-2.5-flash", // Latest! Fastest and most accurate
+        "gemini-2.5-flash", // Without prefix fallback
+        "models/gemini-2.0-flash", // Backup: Gemini 2.0
+        "gemini-2.0-flash",
+        "gemini-1.5-flash", // Legacy fallback
       ];
 
       console.log("🤖 Requesting Gemini (Simplified Mode)...");
