@@ -280,20 +280,27 @@ const listingCtrl = {
         ];
 
         // Send notification to each previous bidder
-        uniqueBidders.forEach(async (bidderId) => {
-          await sendPushNotification(
-            bidderId,
-            `New bid on "${listing.name}"`,
-            `Someone just bid $${amount}. Current highest bid: $${updatedListing.currentBid}`,
-            {
-              type: "NEW_BID",
-              listingId: listing._id.toString(),
-              listingName: listing.name,
-              newBid: amount,
-              currentBid: updatedListing.currentBid,
-            }
-          );
-        });
+        for (const bidderId of uniqueBidders) {
+          try {
+            await sendPushNotification(
+              bidderId,
+              `New bid on "${listing.name}"`,
+              `Someone just bid $${amount}. Current highest bid: $${updatedListing.currentBid}`,
+              {
+                type: "NEW_BID",
+                listingId: listing._id.toString(),
+                listingName: listing.name,
+                newBid: amount,
+                currentBid: updatedListing.currentBid,
+              }
+            );
+          } catch (error) {
+            console.error(
+              `❌ Failed to send notification to bidder ${bidderId}:`,
+              error
+            );
+          }
+        }
 
         console.log(
           `📣 Sent bid notifications to ${uniqueBidders.length} previous bidder(s) for listing: ${listing.name}`

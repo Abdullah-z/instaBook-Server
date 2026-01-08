@@ -37,21 +37,28 @@ const startAuctionScheduler = () => {
             });
 
             // Send push notification to the winner
-            await sendPushNotification(
-              listing.highestBidder._id.toString(),
-              "🎉 You Won the Auction!",
-              `Congratulations! You won "${listing.name}" with a bid of $${listing.currentBid}`,
-              {
-                type: "AUCTION_WON",
-                listingId: listing._id.toString(),
-                listingName: listing.name,
-                winningBid: listing.currentBid,
-              }
-            );
+            try {
+              await sendPushNotification(
+                listing.highestBidder._id.toString(),
+                "🎉 You Won the Auction!",
+                `Congratulations! You won "${listing.name}" with a bid of $${listing.currentBid}`,
+                {
+                  type: "AUCTION_WON",
+                  listingId: listing._id.toString(),
+                  listingName: listing.name,
+                  winningBid: listing.currentBid,
+                }
+              );
 
-            console.log(
-              `   ✅ Winner notified for "${listing.name}" - Bid: $${listing.currentBid}`
-            );
+              console.log(
+                `   ✅ Winner notified for "${listing.name}" - Bid: $${listing.currentBid}`
+              );
+            } catch (error) {
+              console.error(
+                `   ❌ Failed to notify winner for "${listing.name}":`,
+                error
+              );
+            }
           } else {
             // No bidders, just mark as completed
             await Listings.findByIdAndUpdate(listing._id, {
