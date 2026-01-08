@@ -403,6 +403,10 @@ const SocketServer = (socket) => {
                   type: "MESSAGE",
                   conversationId: msg.conversation,
                   senderId: msg.sender._id,
+                  senderName: msg.sender.username,
+                  senderAvatar: msg.sender.avatar,
+                  isGroup: true,
+                  groupName: conversation.groupName,
                 }
               );
             }
@@ -428,6 +432,9 @@ const SocketServer = (socket) => {
               type: "MESSAGE",
               conversationId: msg.conversation,
               senderId: msg.sender._id,
+              senderName: msg.sender.username,
+              senderAvatar: msg.sender.avatar,
+              isGroup: false,
             }
           );
         }
