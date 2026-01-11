@@ -46,6 +46,11 @@ exports.getSharedLocations = async (req, res) => {
     const followingIds = user.following || [];
     const allRelevantIds = [...followingIds, req.user._id];
 
+    // Ensure index exists (Insurance for newly added index)
+    Location.createIndexes().catch((err) =>
+      console.error("Index creation error:", err)
+    );
+
     // 1. Fetch active sharing sessions
     let query = {
       $or: [
@@ -56,8 +61,10 @@ exports.getSharedLocations = async (req, res) => {
     };
 
     // Apply geospatial filter if coordinates and radius are provided
-    if (lat && lon && radius) {
-      const radiusInMeters = parseFloat(radius) * 1000;
+    // Skip if radius is >= 10000 (representing "All")
+    const r = parseFloat(radius);
+    if (lat && lon && r && r < 10000) {
+      const radiusInMeters = r * 1000;
       query.location = {
         $nearSphere: {
           $geometry: {
@@ -89,8 +96,8 @@ exports.getSharedLocations = async (req, res) => {
       isStory: false,
     };
 
-    if (lat && lon && radius) {
-      const radiusInMeters = parseFloat(radius) * 1000;
+    if (lat && lon && r && r < 10000) {
+      const radiusInMeters = r * 1000;
       postMatch.location = {
         $nearSphere: {
           $geometry: {
