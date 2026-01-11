@@ -15,6 +15,10 @@ const locationSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    location: {
+      type: { type: String, default: "Point" },
+      coordinates: { type: [Number], index: "2dsphere" },
+    },
     visibility: {
       type: String,
       enum: ["friends", "public"],

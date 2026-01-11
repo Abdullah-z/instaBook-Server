@@ -11,7 +11,14 @@ exports.shareLocation = async (req, res) => {
 
     const location = await Location.findOneAndUpdate(
       { user: req.user._id },
-      { latitude, longitude, visibility, type, expiresAt },
+      {
+        latitude,
+        longitude,
+        location: { type: "Point", coordinates: [longitude, latitude] },
+        visibility,
+        type,
+        expiresAt,
+      },
       { upsert: true, new: true }
     );
 
@@ -26,6 +33,7 @@ exports.shareLocation = async (req, res) => {
 // Fetch shared locations
 exports.getSharedLocations = async (req, res) => {
   try {
+    const { lat, lon, radius } = req.query;
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -35,25 +43,58 @@ exports.getSharedLocations = async (req, res) => {
     const allRelevantIds = [...followingIds, req.user._id];
 
     // 1. Fetch active sharing sessions
-    const locations = await Location.find({
+    let query = {
       $or: [
         { visibility: "public" },
         { visibility: "friends", user: { $in: followingIds } },
         { user: req.user._id }, // Always include self
       ],
-    }).populate("user", "username fullname avatar");
+    };
+
+    // Apply geospatial filter if coordinates and radius are provided
+    if (lat && lon && radius) {
+      const radiusInMeters = parseFloat(radius) * 1000;
+      query.location = {
+        $nearSphere: {
+          $geometry: {
+            type: "Point",
+            coordinates: [parseFloat(lon), parseFloat(lat)],
+          },
+          $maxDistance: radiusInMeters,
+        },
+      };
+    }
+
+    const locations = await Location.find(query)
+      .populate("user", "username fullname avatar")
+      .limit(100);
 
     // 2. Fetch LATEST post with location for each user using aggregation
     const Posts = require("../models/postModel");
-    const latestPostsAgg = await Posts.aggregate([
-      {
-        $match: {
-          user: { $in: allRelevantIds },
-          location: { $exists: true },
-          address: { $exists: true },
-          isStory: false,
+
+    // We also want to filter latest posts by proximity if center is provided
+    let postMatch = {
+      user: { $in: allRelevantIds },
+      location: { $exists: true },
+      address: { $exists: true },
+      isStory: false,
+    };
+
+    if (lat && lon && radius) {
+      const radiusInMeters = parseFloat(radius) * 1000;
+      postMatch.location = {
+        $nearSphere: {
+          $geometry: {
+            type: "Point",
+            coordinates: [parseFloat(lon), parseFloat(lat)],
+          },
+          $maxDistance: radiusInMeters,
         },
-      },
+      };
+    }
+
+    const latestPostsAgg = await Posts.aggregate([
+      { $match: postMatch },
       { $sort: { createdAt: -1 } },
       {
         $group: {
@@ -61,6 +102,7 @@ exports.getSharedLocations = async (req, res) => {
           latestPost: { $first: "$$ROOT" },
         },
       },
+      { $limit: 100 }, // Limit total latest post markers
       {
         $lookup: {
           from: "users",
@@ -70,6 +112,20 @@ exports.getSharedLocations = async (req, res) => {
         },
       },
       { $unwind: "$userDetails" },
+      {
+        $project: {
+          "latestPost.location": 1,
+          "latestPost._id": 1,
+          "latestPost.address": 1,
+          "latestPost.createdAt": 1,
+          "latestPost.content": 1,
+          "latestPost.images": 1,
+          "userDetails.username": 1,
+          "userDetails.fullname": 1,
+          "userDetails.avatar": 1,
+          "userDetails._id": 1,
+        },
+      },
     ]);
 
     const postMarkers = latestPostsAgg.map((item) => {
