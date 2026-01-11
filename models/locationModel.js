@@ -25,10 +25,14 @@ const locationSchema = new mongoose.Schema(
       enum: ["live", "static"],
       default: "live",
     },
+    expiresAt: {
+      type: Date,
+      index: { expires: 0 },
+    },
   },
   {
     timestamps: true,
   }
 );
 
-module.exports = mongoose.model("Location", locationSchema);
+module.exports = mongoose.model("location", locationSchema);
