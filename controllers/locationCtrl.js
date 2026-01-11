@@ -6,15 +6,15 @@ exports.shareLocation = async (req, res) => {
   try {
     const { latitude, longitude, visibility } = req.body;
 
-    const location = new Location({
-      user: req.user.id,
-      latitude,
-      longitude,
-      visibility,
-    });
+    const location = await Location.findOneAndUpdate(
+      { user: req.user._id },
+      { latitude, longitude, visibility },
+      { upsert: true, new: true }
+    );
 
-    await location.save();
-    res.status(201).json({ message: "Location shared successfully!" });
+    res
+      .status(200)
+      .json({ message: "Location shared successfully!", location });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -23,15 +23,16 @@ exports.shareLocation = async (req, res) => {
 // Fetch shared locations
 exports.getSharedLocations = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).populate("friends");
-    const friendIds = user.friends.map((friend) => friend._id);
+    const user = await User.findById(req.user._id);
+    const followingIds = user.following;
 
     const locations = await Location.find({
       $or: [
         { visibility: "public" },
-        { visibility: "friends", user: { $in: friendIds } },
+        { visibility: "friends", user: { $in: followingIds } },
+        { user: req.user._id }, // Always include self
       ],
-    }).populate("user", "username");
+    }).populate("user", "username fullname avatar");
 
     res.status(200).json(locations);
   } catch (err) {
