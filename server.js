@@ -43,6 +43,7 @@ app.use("/api", require("./routes/notifyRouter"));
 app.use("/api", require("./routes/messageRouter"));
 app.use("/api", require("./routes/agoraRouter"));
 app.use("/api", require("./routes/listingRouter"));
+app.use("/api/location", require("./routes/locationRouter")); // New location route
 
 // MongoDB Connection
 const URI = process.env.MONGODB_URL;
