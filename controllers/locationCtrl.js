@@ -24,7 +24,11 @@ exports.shareLocation = async (req, res) => {
 exports.getSharedLocations = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    const followingIds = user.following;
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const followingIds = user.following || [];
 
     const locations = await Location.find({
       $or: [
@@ -36,6 +40,12 @@ exports.getSharedLocations = async (req, res) => {
 
     res.status(200).json(locations);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("getSharedLocations error:", err);
+    res
+      .status(500)
+      .json({
+        message: "Internal server error while fetching locations",
+        error: err.message,
+      });
   }
 };
