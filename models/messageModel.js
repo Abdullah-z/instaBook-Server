@@ -9,6 +9,11 @@ const messageSchema = new Schema(
     text: String,
     media: Array,
     call: Object,
+    location: {
+      lat: Number,
+      lon: Number,
+      address: String,
+    },
   },
   {
     timestamps: true,

@@ -21,10 +21,11 @@ class APIfeatures {
 const messageCtrl = {
   createMessage: async (req, res) => {
     try {
-      const { recipient, text, media, call, conversationId } = req.body;
+      const { recipient, text, media, call, location, conversationId } =
+        req.body;
       if (
         (!recipient && !conversationId) ||
-        (!text?.trim() && (!media || media.length === 0) && !call)
+        (!text?.trim() && (!media || media.length === 0) && !call && !location)
       )
         return;
 
@@ -40,6 +41,7 @@ const messageCtrl = {
           text,
           media,
           call,
+          location,
         });
 
         await newMessage.save();
@@ -47,7 +49,7 @@ const messageCtrl = {
         await Conversations.findOneAndUpdate(
           { _id: conversation._id },
           {
-            text,
+            text: text || (location ? "📍 Shared a location" : ""),
             media,
           }
         );
@@ -58,7 +60,7 @@ const messageCtrl = {
       // 1-on-1 Message
       let conversationText = text;
       if (!conversationText && call) {
-        statusText =
+        let statusText =
           call.status === "missed"
             ? "Missed"
             : call.status === "rejected"
@@ -69,6 +71,8 @@ const messageCtrl = {
         } call`.trim();
         conversationText =
           conversationText.charAt(0).toUpperCase() + conversationText.slice(1);
+      } else if (!conversationText && location) {
+        conversationText = "📍 Shared a location";
       }
 
       const newConversation = await Conversations.findOneAndUpdate(
@@ -93,6 +97,7 @@ const messageCtrl = {
         text,
         media,
         call,
+        location,
       });
 
       await newMessage.save();
