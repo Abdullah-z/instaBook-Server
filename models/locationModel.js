@@ -20,6 +20,11 @@ const locationSchema = new mongoose.Schema(
       enum: ["friends", "public"],
       required: true,
     },
+    type: {
+      type: String,
+      enum: ["live", "static"],
+      default: "live",
+    },
   },
   {
     timestamps: true,

@@ -4,11 +4,11 @@ const User = require("../models/userModel");
 // Share location
 exports.shareLocation = async (req, res) => {
   try {
-    const { latitude, longitude, visibility } = req.body;
+    const { latitude, longitude, visibility, type } = req.body;
 
     const location = await Location.findOneAndUpdate(
       { user: req.user._id },
-      { latitude, longitude, visibility },
+      { latitude, longitude, visibility, type: type || "live" },
       { upsert: true, new: true }
     );
 
@@ -41,11 +41,9 @@ exports.getSharedLocations = async (req, res) => {
     res.status(200).json(locations);
   } catch (err) {
     console.error("getSharedLocations error:", err);
-    res
-      .status(500)
-      .json({
-        message: "Internal server error while fetching locations",
-        error: err.message,
-      });
+    res.status(500).json({
+      message: "Internal server error while fetching locations",
+      error: err.message,
+    });
   }
 };
