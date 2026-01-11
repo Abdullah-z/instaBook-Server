@@ -38,7 +38,7 @@ exports.getSharedLocations = async (req, res) => {
     console.log(
       `[Location Fetch] Params: lat=${lat}, lon=${lon}, radius=${radius}`
     );
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("following");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -73,13 +73,14 @@ exports.getSharedLocations = async (req, res) => {
       })
       .catch((err) => console.error("[Location Migration] Error:", err));
 
-    // Ensure index exists
-    Location.createIndexes().catch((err) =>
-      console.error("[Location Index] Error:", err)
+    // 0.1 Cleanup Expired Locations (Background)
+    Location.deleteMany({ expiresAt: { $lte: new Date() } }).catch((err) =>
+      console.error("[Location Cleanup] Error:", err)
     );
 
     // 1. Fetch active sharing sessions
     let query = {
+      expiresAt: { $gt: new Date() }, // Only active sessions
       $or: [
         { visibility: "public" },
         { visibility: "friends", user: { $in: followingIds } },
