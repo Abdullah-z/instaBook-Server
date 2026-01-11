@@ -46,9 +46,36 @@ exports.getSharedLocations = async (req, res) => {
     const followingIds = user.following || [];
     const allRelevantIds = [...followingIds, req.user._id];
 
-    // Ensure index exists (Insurance for newly added index)
+    // 0. Migration Check: Ensure old records have the 'location' GeoJSON field
+    // This runs in the background to fix documents that only have latitude/longitude
+    Location.updateMany(
+      {
+        location: { $exists: false },
+        latitude: { $exists: true },
+        longitude: { $exists: true },
+      },
+      [
+        {
+          $set: {
+            location: {
+              type: "Point",
+              coordinates: ["$longitude", "$latitude"],
+            },
+          },
+        },
+      ]
+    )
+      .then((res) => {
+        if (res.modifiedCount > 0)
+          console.log(
+            `[Location Migration] Updated ${res.modifiedCount} old records.`
+          );
+      })
+      .catch((err) => console.error("[Location Migration] Error:", err));
+
+    // Ensure index exists
     Location.createIndexes().catch((err) =>
-      console.error("Index creation error:", err)
+      console.error("[Location Index] Error:", err)
     );
 
     // 1. Fetch active sharing sessions
@@ -60,94 +87,125 @@ exports.getSharedLocations = async (req, res) => {
       ],
     };
 
-    // Apply geospatial filter if coordinates and radius are provided
-    // Skip if radius is >= 10000 (representing "All")
     const r = parseFloat(radius);
-    if (lat && lon && r && r < 10000) {
-      const radiusInMeters = r * 1000;
+    const useGeo = lat && lon && r && r < 10000;
+
+    if (useGeo) {
       query.location = {
         $nearSphere: {
           $geometry: {
             type: "Point",
             coordinates: [parseFloat(lon), parseFloat(lat)],
           },
-          $maxDistance: radiusInMeters,
+          $maxDistance: r * 1000,
         },
       };
     }
 
-    const locations = await Location.find(query)
-      .populate("user", "username fullname avatar")
-      .limit(100);
-    console.log(
-      `[Location Fetch] Active sharing found: ${locations.length} (Time: ${
-        Date.now() - start
-      }ms)`
-    );
+    let locations = [];
+    try {
+      locations = await Location.find(query)
+        .populate("user", "username fullname avatar")
+        .limit(100);
+      console.log(
+        `[Location Fetch] Active sharing found: ${locations.length} (Time: ${
+          Date.now() - start
+        }ms)`
+      );
+    } catch (err) {
+      console.error("[Location Fetch] Error finding locations:", err);
+      // Fallback: If geospatial query fails (index still building?), try without it
+      if (useGeo) {
+        delete query.location;
+        locations = await Location.find(query)
+          .populate("user", "username fullname avatar")
+          .limit(100);
+        console.log(
+          `[Location Fetch] Fallback successful (Time: ${Date.now() - start}ms)`
+        );
+      } else {
+        throw err;
+      }
+    }
 
-    // 2. Fetch LATEST post with location for each user using aggregation
+    // 2. Fetch LATEST post with location for each user
     const Posts = require("../models/postModel");
+    let pipeline = [];
 
-    // We also want to filter latest posts by proximity if center is provided
-    let postMatch = {
-      user: { $in: allRelevantIds },
-      location: { $exists: true },
-      address: { $exists: true },
-      isStory: false,
-    };
-
-    if (lat && lon && r && r < 10000) {
-      const radiusInMeters = r * 1000;
-      postMatch.location = {
-        $nearSphere: {
-          $geometry: {
+    // Use $geoNear if we have center coordinates and a reasonable radius
+    if (useGeo) {
+      pipeline.push({
+        $geoNear: {
+          near: {
             type: "Point",
             coordinates: [parseFloat(lon), parseFloat(lat)],
           },
-          $maxDistance: radiusInMeters,
+          distanceField: "dist.calculated",
+          maxDistance: r * 1000,
+          query: {
+            user: { $in: allRelevantIds },
+            location: { $exists: true },
+            address: { $exists: true },
+            isStory: false,
+          },
+          spherical: true,
         },
-      };
+      });
+    } else {
+      pipeline.push({
+        $match: {
+          user: { $in: allRelevantIds },
+          location: { $exists: true },
+          address: { $exists: true },
+          isStory: false,
+        },
+      });
     }
 
-    const latestPostsAgg = await Posts.aggregate([
-      { $match: postMatch },
-      { $sort: { createdAt: -1 } },
-      {
-        $group: {
-          _id: "$user",
-          latestPost: { $first: "$$ROOT" },
-        },
+    pipeline.push({ $sort: { createdAt: -1 } });
+    pipeline.push({
+      $group: {
+        _id: "$user",
+        latestPost: { $first: "$$ROOT" },
       },
-      { $limit: 100 }, // Limit total latest post markers
-      {
-        $lookup: {
-          from: "users",
-          localField: "_id",
-          foreignField: "_id",
-          as: "userDetails",
-        },
+    });
+    pipeline.push({ $limit: 100 });
+    pipeline.push({
+      $lookup: {
+        from: "users",
+        localField: "_id",
+        foreignField: "_id",
+        as: "userDetails",
       },
-      { $unwind: "$userDetails" },
-      {
-        $project: {
-          "latestPost.location": 1,
-          "latestPost._id": 1,
-          "latestPost.address": 1,
-          "latestPost.createdAt": 1,
-          "latestPost.content": 1,
-          "latestPost.images": 1,
-          "userDetails.username": 1,
-          "userDetails.fullname": 1,
-          "userDetails.avatar": 1,
-          "userDetails._id": 1,
-        },
+    });
+    pipeline.push({ $unwind: "$userDetails" });
+    pipeline.push({
+      $project: {
+        "latestPost.location": 1,
+        "latestPost._id": 1,
+        "latestPost.address": 1,
+        "latestPost.createdAt": 1,
+        "latestPost.content": 1,
+        "latestPost.images": 1,
+        "userDetails.username": 1,
+        "userDetails.fullname": 1,
+        "userDetails.avatar": 1,
+        "userDetails._id": 1,
       },
-    ]);
-    console.log(
-      `[Location Fetch] Latest posts found: ${latestPostsAgg.length} (Time: ${
-        Date.now() - start
-      }ms)`
-    );
+    });
+
+    let latestPostsAgg = [];
+    try {
+      latestPostsAgg = await Posts.aggregate(pipeline);
+      console.log(
+        `[Location Fetch] Latest posts found: ${latestPostsAgg.length} (Time: ${
+          Date.now() - start
+        }ms)`
+      );
+    } catch (err) {
+      console.error("[Location Fetch] Aggregation error:", err);
+      // Fallback for aggregation similarly if needed, but usually index is same
+    }
 
     const postMarkers = latestPostsAgg.map((item) => {
       const p = item.latestPost;
