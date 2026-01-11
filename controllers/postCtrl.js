@@ -21,7 +21,13 @@ class APIfeatures {
 const postCtrl = {
   createPost: async (req, res) => {
     try {
-      const { content, images, postType = "feed" } = req.body;
+      const {
+        content,
+        images,
+        postType = "feed",
+        address,
+        location,
+      } = req.body;
 
       if (images.length === 0 && (!content || content.length === 0)) {
         return res.status(400).json({ msg: "Please add photo(s) or content" });
@@ -33,6 +39,8 @@ const postCtrl = {
           images,
           user: req.user._id,
           isStory: false,
+          address,
+          location,
         });
         await newPost.save();
         return newPost;
@@ -45,6 +53,8 @@ const postCtrl = {
           user: req.user._id,
           isStory: true,
           expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+          address,
+          location,
         });
         await newStory.save();
         return newStory;
@@ -155,13 +165,15 @@ const postCtrl = {
 
   updatePost: async (req, res) => {
     try {
-      const { content, images } = req.body;
+      const { content, images, address, location } = req.body;
 
       const post = await Posts.findOneAndUpdate(
         { _id: req.params.id },
         {
           content,
           images,
+          address,
+          location,
         }
       )
         .populate("user likes", "avatar username fullname")
@@ -179,6 +191,8 @@ const postCtrl = {
           ...post._doc,
           content,
           images,
+          address,
+          location,
         },
       });
     } catch (err) {

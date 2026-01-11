@@ -38,6 +38,11 @@ const postSchema = new Schema(
       type: Date,
       // index: { expires: 0 },
     },
+    address: String,
+    location: {
+      type: { type: String, default: "Point" },
+      coordinates: { type: [Number], index: "2dsphere" },
+    },
   },
   {
     timestamps: true,
