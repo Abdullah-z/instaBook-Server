@@ -32,8 +32,12 @@ exports.shareLocation = async (req, res) => {
 
 // Fetch shared locations
 exports.getSharedLocations = async (req, res) => {
+  const start = Date.now();
   try {
     const { lat, lon, radius } = req.query;
+    console.log(
+      `[Location Fetch] Params: lat=${lat}, lon=${lon}, radius=${radius}`
+    );
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -68,6 +72,11 @@ exports.getSharedLocations = async (req, res) => {
     const locations = await Location.find(query)
       .populate("user", "username fullname avatar")
       .limit(100);
+    console.log(
+      `[Location Fetch] Active sharing found: ${locations.length} (Time: ${
+        Date.now() - start
+      }ms)`
+    );
 
     // 2. Fetch LATEST post with location for each user using aggregation
     const Posts = require("../models/postModel");
@@ -127,6 +136,11 @@ exports.getSharedLocations = async (req, res) => {
         },
       },
     ]);
+    console.log(
+      `[Location Fetch] Latest posts found: ${latestPostsAgg.length} (Time: ${
+        Date.now() - start
+      }ms)`
+    );
 
     const postMarkers = latestPostsAgg.map((item) => {
       const p = item.latestPost;
@@ -157,7 +171,11 @@ exports.getSharedLocations = async (req, res) => {
       ...locations.map((l) => ({ ...l._doc, lastUpdate: l.updatedAt })),
       ...postMarkers,
     ];
-
+    console.log(
+      `[Location Fetch] Total markers: ${combined.length} (Total Time: ${
+        Date.now() - start
+      }ms)`
+    );
     res.status(200).json(combined);
   } catch (err) {
     console.error("getSharedLocations error:", err);
