@@ -43,40 +43,59 @@ exports.getSharedLocations = async (req, res) => {
       ],
     }).populate("user", "username fullname avatar");
 
-    // 2. Fetch latest post with location for each user
+    // 2. Fetch LATEST post with location for each user using aggregation
     const Posts = require("../models/postModel");
-    const latestPosts = await Posts.find({
-      location: { $exists: true },
-      address: { $exists: true },
-      isStory: false,
-      user: { $in: allRelevantIds },
-    })
-      .sort("-createdAt")
-      .populate("user", "username fullname avatar");
-
-    const userLatestPosts = {};
-    latestPosts.forEach((p) => {
-      const uid = p.user._id.toString();
-      if (!userLatestPosts[uid]) {
-        userLatestPosts[uid] = p;
-      }
-    });
-
-    const postMarkers = Object.values(userLatestPosts).map((p) => ({
-      _id: `post-${p._id}`,
-      user: p.user,
-      latitude: p.location.coordinates[1],
-      longitude: p.location.coordinates[0],
-      visibility: "friends",
-      type: "post",
-      address: p.address,
-      lastUpdate: p.createdAt,
-      postData: {
-        id: p._id,
-        content: p.content,
-        image: p.images[0]?.url,
+    const latestPostsAgg = await Posts.aggregate([
+      {
+        $match: {
+          user: { $in: allRelevantIds },
+          location: { $exists: true },
+          address: { $exists: true },
+          isStory: false,
+        },
       },
-    }));
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: "$user",
+          latestPost: { $first: "$$ROOT" },
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "userDetails",
+        },
+      },
+      { $unwind: "$userDetails" },
+    ]);
+
+    const postMarkers = latestPostsAgg.map((item) => {
+      const p = item.latestPost;
+      const u = item.userDetails;
+      return {
+        _id: `post-${p._id}`,
+        user: {
+          _id: u._id,
+          username: u.username,
+          fullname: u.fullname,
+          avatar: u.avatar,
+        },
+        latitude: p.location.coordinates[1],
+        longitude: p.location.coordinates[0],
+        visibility: "friends",
+        type: "post",
+        address: p.address,
+        lastUpdate: p.createdAt,
+        postData: {
+          id: p._id,
+          content: p.content,
+          image: p.images[0]?.url,
+        },
+      };
+    });
 
     const combined = [
       ...locations.map((l) => ({ ...l._doc, lastUpdate: l.updatedAt })),
