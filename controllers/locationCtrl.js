@@ -150,10 +150,9 @@ exports.getSharedLocations = async (req, res) => {
           distanceField: "dist.calculated",
           maxDistance: r * 1000,
           query: {
-            user: { $in: allRelevantIds },
+            ...(r < 10000 ? { user: { $in: allRelevantIds } } : {}),
             location: { $exists: true },
-            address: { $exists: true },
-            isStory: false,
+            isStory: { $ne: true },
           },
           spherical: true,
         },
@@ -162,8 +161,7 @@ exports.getSharedLocations = async (req, res) => {
       // Global View (Radius "All")
       const postMatch = {
         location: { $exists: true },
-        address: { $exists: true },
-        isStory: false,
+        isStory: { $ne: true },
       };
 
       // If radius < 10000 but not using geo for some reason, we still might want restriction
@@ -172,6 +170,10 @@ exports.getSharedLocations = async (req, res) => {
         postMatch.user = { $in: allRelevantIds };
       }
 
+      console.log(
+        `[Location Fetch] Post Match Query:`,
+        JSON.stringify(postMatch)
+      );
       pipeline.push({ $match: postMatch });
     }
 
@@ -254,13 +256,16 @@ exports.getSharedLocations = async (req, res) => {
       });
 
     const combined = [
-      ...locations.map((l) => ({ ...l._doc, lastUpdate: l.updatedAt })),
+      ...locations.map((l) => ({
+        ...(l.toObject ? l.toObject() : l),
+        lastUpdate: l.updatedAt,
+      })),
       ...postMarkers,
     ];
     console.log(
-      `[Location Fetch] Total markers: ${combined.length} (Total Time: ${
-        Date.now() - start
-      }ms)`
+      `[Location Fetch] Final Markers - Shared: ${locations.length}, Posts: ${
+        postMarkers.length
+      }, Total: ${combined.length} (Total Time: ${Date.now() - start}ms)`
     );
     res.status(200).json(combined);
   } catch (err) {
