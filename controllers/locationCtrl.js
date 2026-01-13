@@ -86,12 +86,17 @@ exports.getSharedLocations = async (req, res) => {
     // 1. Fetch active sharing sessions
     let query = {
       expiresAt: { $gt: new Date() }, // Only active sessions
-      $or: [
+    };
+
+    if (targetUserId) {
+      query.user = targetUserId;
+    } else {
+      query.$or = [
         { visibility: "public" },
         { visibility: "friends", user: { $in: followingIds } },
         { user: req.user._id }, // Always include self
-      ],
-    };
+      ];
+    }
 
     const r = parseFloat(radius);
     const useGeo = lat && lon && r && r < 10000;
