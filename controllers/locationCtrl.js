@@ -1,5 +1,6 @@
 const Location = require("../models/locationModel");
 const User = require("../models/userModel");
+const mongoose = require("mongoose");
 
 // Share location
 exports.shareLocation = async (req, res) => {
@@ -135,55 +136,74 @@ exports.getSharedLocations = async (req, res) => {
       }
     }
 
-    // 2. Fetch LATEST post with location for each user
+    // 2. Fetch post markers
     const Posts = require("../models/postModel");
+    const { targetUserId, timePeriod } = req.query;
     let pipeline = [];
 
-    // Use $geoNear if we have center coordinates and a reasonable radius
-    if (useGeo) {
+    // 1. Build postMatch
+    const postMatch = {
+      location: { $exists: true },
+      isStory: { $ne: true },
+    };
+
+    // Filter by user(s)
+    if (targetUserId) {
+      postMatch.user = mongoose.Types.ObjectId(targetUserId);
+    } else if (r < 10000) {
+      postMatch.user = { $in: allRelevantIds };
+    }
+
+    // Filter by timePeriod
+    if (timePeriod && timePeriod !== "all") {
+      const now = new Date();
+      let startTime = new Date();
+      if (timePeriod === "day") startTime.setDate(now.getDate() - 1);
+      else if (timePeriod === "month") startTime.setMonth(now.getMonth() - 1);
+      else if (timePeriod === "year")
+        startTime.setFullYear(now.getFullYear() - 1);
+      postMatch.createdAt = { $gte: startTime };
+    }
+
+    pipeline.push({ $match: postMatch });
+    pipeline.push({ $sort: { createdAt: -1 } });
+
+    // If NO targetUserId, show only 1 latest post per user
+    if (!targetUserId) {
       pipeline.push({
-        $geoNear: {
-          near: {
-            type: "Point",
-            coordinates: [parseFloat(lon), parseFloat(lat)],
-          },
-          distanceField: "dist.calculated",
-          maxDistance: r * 1000,
-          query: {
-            ...(r < 10000 ? { user: { $in: allRelevantIds } } : {}),
-            location: { $exists: true },
-            isStory: { $ne: true },
-          },
-          spherical: true,
+        $group: {
+          _id: "$user",
+          latestPost: { $first: "$$ROOT" },
         },
       });
     } else {
-      // Global View (Radius "All")
-      const postMatch = {
-        location: { $exists: true },
-        isStory: { $ne: true },
-      };
-
-      // If radius < 10000 but not using geo for some reason, we still might want restriction
-      // But typically "All" sets radius to 20000
-      if (r < 10000) {
-        postMatch.user = { $in: allRelevantIds };
-      }
-
-      console.log(
-        `[Location Fetch] Post Match Query:`,
-        JSON.stringify(postMatch)
-      );
-      pipeline.push({ $match: postMatch });
+      // If targetUserId, we want ALL posts as separate markers
+      // Wrap them in latestPost structure for compatibility with existing project mapping
+      pipeline.push({
+        $project: {
+          _id: 0,
+          latestPost: "$$ROOT",
+        },
+      });
     }
 
-    pipeline.push({ $sort: { createdAt: -1 } });
-    pipeline.push({
-      $group: {
-        _id: "$user",
-        latestPost: { $first: "$$ROOT" },
-      },
-    });
+    // 2. If radius specified (and not "All"), filter by distance
+    if (useGeo && !targetUserId) {
+      const radiusInRadians = r / 6378.1;
+      pipeline.push({
+        $match: {
+          "latestPost.location": {
+            $geoWithin: {
+              $centerSphere: [
+                [parseFloat(lon), parseFloat(lat)],
+                radiusInRadians,
+              ],
+            },
+          },
+        },
+      });
+    }
+
     pipeline.push({ $limit: 100 });
     pipeline.push({
       $lookup: {
