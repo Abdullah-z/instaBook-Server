@@ -39,7 +39,7 @@ exports.getSharedLocations = async (req, res) => {
   );
   const start = Date.now();
   try {
-    const { lat, lon, radius } = req.query;
+    const { lat, lon, radius, targetUserId, timePeriod } = req.query;
     console.log(
       `[Location Fetch] Params: lat=${lat}, lon=${lon}, radius=${radius}`
     );
@@ -143,7 +143,6 @@ exports.getSharedLocations = async (req, res) => {
 
     // 2. Fetch post markers
     const Posts = require("../models/postModel");
-    const { targetUserId, timePeriod } = req.query;
     let pipeline = [];
 
     // 1. Build postMatch
