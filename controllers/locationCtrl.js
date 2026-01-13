@@ -226,6 +226,8 @@ exports.getSharedLocations = async (req, res) => {
         "latestPost.createdAt": 1,
         "latestPost.content": 1,
         "latestPost.images": 1,
+        "latestPost.likes": 1,
+        "latestPost.comments": 1,
         "userDetails.username": 1,
         "userDetails.fullname": 1,
         "userDetails.avatar": 1,
@@ -275,6 +277,8 @@ exports.getSharedLocations = async (req, res) => {
             id: p._id,
             content: p.content,
             image: p.images[0]?.url,
+            likes: p.likes ? p.likes.length : 0,
+            comments: p.comments ? p.comments.length : 0,
           },
         };
       });
