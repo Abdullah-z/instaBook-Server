@@ -184,8 +184,7 @@ exports.getSharedLocations = async (req, res) => {
       // If targetUserId, we want ALL posts as separate markers
       // Wrap them in latestPost structure for compatibility with existing project mapping
       pipeline.push({
-        $project: {
-          _id: 0,
+          _id: "$user",
           latestPost: "$$ROOT",
         },
       });
