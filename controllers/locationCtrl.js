@@ -159,14 +159,20 @@ exports.getSharedLocations = async (req, res) => {
         },
       });
     } else {
-      pipeline.push({
-        $match: {
-          user: { $in: allRelevantIds },
-          location: { $exists: true },
-          address: { $exists: true },
-          isStory: false,
-        },
-      });
+      // Global View (Radius "All")
+      const postMatch = {
+        location: { $exists: true },
+        address: { $exists: true },
+        isStory: false,
+      };
+
+      // If radius < 10000 but not using geo for some reason, we still might want restriction
+      // But typically "All" sets radius to 20000
+      if (r < 10000) {
+        postMatch.user = { $in: allRelevantIds };
+      }
+
+      pipeline.push({ $match: postMatch });
     }
 
     pipeline.push({ $sort: { createdAt: -1 } });
