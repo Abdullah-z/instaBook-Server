@@ -109,6 +109,7 @@ exports.getSharedLocations = async (req, res) => {
 
     let locations = [];
     try {
+      console.log(`[Location Fetch] Query:`, JSON.stringify(query));
       locations = await Location.find(query)
         .populate("user", "username fullname avatar")
         .limit(100);
@@ -121,6 +122,7 @@ exports.getSharedLocations = async (req, res) => {
       console.error("[Location Fetch] Error finding locations:", err);
       // Fallback: If geospatial query fails (index still building?), try without it
       if (useGeo) {
+        console.log("[Location Fetch] Retrying without geo query...");
         delete query.location;
         locations = await Location.find(query)
           .populate("user", "username fullname avatar")
@@ -199,6 +201,7 @@ exports.getSharedLocations = async (req, res) => {
       },
     });
 
+    console.log(`[Location Fetch] Post Pipeline:`, JSON.stringify(pipeline));
     let latestPostsAgg = [];
     try {
       latestPostsAgg = await Posts.aggregate(pipeline);
@@ -212,30 +215,37 @@ exports.getSharedLocations = async (req, res) => {
       // Fallback for aggregation similarly if needed, but usually index is same
     }
 
-    const postMarkers = latestPostsAgg.map((item) => {
-      const p = item.latestPost;
-      const u = item.userDetails;
-      return {
-        _id: `post-${p._id}`,
-        user: {
-          _id: u._id,
-          username: u.username,
-          fullname: u.fullname,
-          avatar: u.avatar,
-        },
-        latitude: p.location.coordinates[1],
-        longitude: p.location.coordinates[0],
-        visibility: "friends",
-        type: "post",
-        address: p.address,
-        lastUpdate: p.createdAt,
-        postData: {
-          id: p._id,
-          content: p.content,
-          image: p.images[0]?.url,
-        },
-      };
-    });
+    const postMarkers = latestPostsAgg
+      .filter(
+        (item) =>
+          item.latestPost &&
+          item.latestPost.location &&
+          item.latestPost.location.coordinates
+      )
+      .map((item) => {
+        const p = item.latestPost;
+        const u = item.userDetails;
+        return {
+          _id: `post-${p._id}`,
+          user: {
+            _id: u._id,
+            username: u.username,
+            fullname: u.fullname,
+            avatar: u.avatar,
+          },
+          latitude: p.location.coordinates[1],
+          longitude: p.location.coordinates[0],
+          visibility: "friends",
+          type: "post",
+          address: p.address,
+          lastUpdate: p.createdAt,
+          postData: {
+            id: p._id,
+            content: p.content,
+            image: p.images[0]?.url,
+          },
+        };
+      });
 
     const combined = [
       ...locations.map((l) => ({ ...l._doc, lastUpdate: l.updatedAt })),
