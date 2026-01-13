@@ -32,6 +32,10 @@ exports.shareLocation = async (req, res) => {
 
 // Fetch shared locations
 exports.getSharedLocations = async (req, res) => {
+  console.log(
+    ">>> [locationRouter] GET /shared requested by user:",
+    req.user._id
+  );
   const start = Date.now();
   try {
     const { lat, lon, radius } = req.query;
