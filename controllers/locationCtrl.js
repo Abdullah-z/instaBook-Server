@@ -149,7 +149,7 @@ exports.getSharedLocations = async (req, res) => {
 
     // Filter by user(s)
     if (targetUserId) {
-      postMatch.user = mongoose.Types.ObjectId(targetUserId);
+      postMatch.user = new mongoose.Types.ObjectId(targetUserId);
     } else if (r < 10000) {
       postMatch.user = { $in: allRelevantIds };
     }
