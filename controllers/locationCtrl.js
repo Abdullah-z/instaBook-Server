@@ -10,6 +10,27 @@ exports.shareLocation = async (req, res) => {
     const hours = parseInt(duration) || 24;
     const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
 
+    // To prevent updatedAt from updating every 30 seconds when the location hasn't changed,
+    // we first find the existing location and compare coords.
+    const existing = await Location.findOne({ user: req.user._id });
+
+    if (
+      existing &&
+      existing.latitude === latitude &&
+      existing.longitude === longitude &&
+      existing.visibility === visibility &&
+      existing.type === type
+    ) {
+      // Just update expiresAt without triggering timestamps if possible,
+      // or just return the existing if we don't care about shifting expiration slightly.
+      // But we should at least update expiresAt.
+      existing.expiresAt = expiresAt;
+      await existing.save();
+      return res
+        .status(200)
+        .json({ message: "Location updated (time only)", location: existing });
+    }
+
     const location = await Location.findOneAndUpdate(
       { user: req.user._id },
       {
