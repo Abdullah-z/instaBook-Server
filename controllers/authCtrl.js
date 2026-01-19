@@ -50,6 +50,7 @@ const authCtrl = {
       res.json({
         msg: "Registered Successfully!",
         access_token,
+        refresh_token,
         user: {
           ...newUser._doc,
           password: "",
@@ -83,7 +84,7 @@ const authCtrl = {
 
       await Users.findOneAndUpdate(
         { _id: req.user._id },
-        { password: newPasswordHash }
+        { password: newPasswordHash },
       );
 
       res.json({ msg: "Password updated successfully." });
@@ -142,7 +143,7 @@ const authCtrl = {
 
       const user = await Users.findOne({ email, role: "user" }).populate(
         "followers following",
-        "-password"
+        "-password",
       );
 
       if (!user) {
@@ -176,6 +177,7 @@ const authCtrl = {
         msg: "Logged in  Successfully!",
         status: 1,
         access_token,
+        refresh_token,
         user: {
           ...user._doc,
           password: "",
@@ -234,8 +236,11 @@ const authCtrl = {
 
   generateAccessToken: async (req, res) => {
     try {
-      const rf_token = req.cookies.refreshtoken;
-      console.log("Generate Access Token");
+      const rf_token = req.cookies.refreshtoken || req.body.refresh_token;
+      console.log(
+        "Generate Access Token",
+        rf_token ? "Token found" : "Token NOT found",
+      );
 
       if (!rf_token) {
         return res.status(400).json({ msg: "Please login again." });
@@ -258,7 +263,7 @@ const authCtrl = {
 
           const access_token = createAccessToken({ id: result.id });
           res.json({ access_token, user });
-        }
+        },
       );
     } catch (err) {
       return res.status(500).json({ msg: err.message });
