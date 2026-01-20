@@ -114,12 +114,15 @@ const messageCtrl = {
           .limit(10)
           .populate("sender", "role");
 
-        const { text: aiResponseText, searchResults } =
-          await aiCtrl.generateAIResponse(
-            history.reverse(),
-            text,
-            req.user._id,
-          );
+        const {
+          text: aiResponseText,
+          searchResults,
+          weatherData,
+        } = await aiCtrl.generateAIResponse(
+          history.reverse(),
+          text,
+          req.user._id,
+        );
 
         const aiMessage = new Messages({
           conversation: newConversation._id,
@@ -127,6 +130,7 @@ const messageCtrl = {
           recipient: req.user._id,
           text: aiResponseText,
           searchResults: searchResults, // Save the structural results
+          weatherData, // Save the weather data
         });
 
         await aiMessage.save();

@@ -15,6 +15,7 @@ const messageSchema = new Schema(
       address: String,
     },
     searchResults: Array,
+    weatherData: Object,
   },
   {
     timestamps: true,

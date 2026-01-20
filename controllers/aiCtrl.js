@@ -146,8 +146,12 @@ const aiCtrl = {
 
       return listings.length > 0
         ? listings.map((l) => ({
+            _id: l._id.toString(),
             name: l.name,
             price: l.price,
+            description: l.description,
+            address: l.address,
+            image: l.images?.[0],
             link: `ListingDetail:${l._id}`,
           }))
         : "No deals found for that search.";
@@ -192,14 +196,7 @@ const aiCtrl = {
       console.log(`🤖 [AI-DEBUG] Generating response for: "${currentMessage}"`);
       const genAI = new GoogleGenerativeAI(apiKey);
 
-      const modelNames = [
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-3-flash",
-        "gemini-1.5-flash",
-        "gemini-1.5-pro",
-        "gemini-pro",
-      ];
+      const modelNames = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
       let lastError = null;
 
       // Fix history mapping: ensure text is always a string and role is correct
@@ -456,6 +453,12 @@ const aiCtrl = {
 
             // Format results for the frontend if it's a search tool
             let searchResults = null;
+            let weatherData = null;
+
+            if (functionCall.name === "getWeather") {
+              weatherData = functionResponse;
+            }
+
             if (Array.isArray(functionResponse)) {
               searchResults = functionResponse.map((item) => ({
                 ...item,
@@ -471,12 +474,14 @@ const aiCtrl = {
             return {
               text: result2.response.text(),
               searchResults,
+              weatherData,
             };
           }
 
           return {
             text: response.text(),
             searchResults: null,
+            weatherData: null,
           };
         } catch (modelErr) {
           console.warn(
