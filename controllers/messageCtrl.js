@@ -115,7 +115,11 @@ const messageCtrl = {
           .populate("sender", "role");
 
         const { text: aiResponseText, searchResults } =
-          await aiCtrl.generateAIResponse(history.reverse(), text);
+          await aiCtrl.generateAIResponse(
+            history.reverse(),
+            text,
+            req.user._id,
+          );
 
         const aiMessage = new Messages({
           conversation: newConversation._id,

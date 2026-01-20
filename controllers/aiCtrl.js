@@ -2,6 +2,8 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const Users = require("../models/userModel");
 const Posts = require("../models/postModel");
 const Listings = require("../models/listingModel");
+const Reminders = require("../models/reminderModel");
+const axios = require("axios");
 
 const aiCtrl = {
   // Helper functions for AI to call
@@ -46,6 +48,7 @@ const aiCtrl = {
             content: p.content,
             author: p.user?.username,
             date: p.createdAt,
+            image: p.images?.[0]?.url || p.images?.[0], // Handle both object and string formats
           }))
         : "No posts found matching that query.";
     } catch (err) {
@@ -74,11 +77,101 @@ const aiCtrl = {
             price: l.price,
             description: l.description,
             address: l.address,
+            image: l.images?.[0],
           }))
         : "No marketplace listings found matching that query.";
     } catch (err) {
       console.error(`❌ [AI-DEBUG] Error searching marketplace:`, err.message);
       return "Error searching marketplace.";
+    }
+  },
+
+  getWeather: async (city) => {
+    try {
+      console.log(`🌦️ [AI-DEBUG] Getting weather for: ${city}`);
+      const apiKey = "6cc098a44449cf3468d194cae0f91b47";
+      const res = await axios.get(
+        `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`,
+      );
+      return {
+        temp: res.data.main.temp,
+        condition: res.data.weather[0].description,
+        humidity: res.data.main.humidity,
+        city: res.data.name,
+      };
+    } catch (err) {
+      return `Error fetching weather: ${err.message}`;
+    }
+  },
+
+  getNews: async () => {
+    try {
+      console.log(`📰 [AI-DEBUG] Fetching top news`);
+      const apiKey = "25b905674f0149bd819b4f8e242f7350";
+      const res = await axios.get(
+        `https://newsapi.org/v2/top-headlines?country=us&apiKey=${apiKey}`,
+      );
+      return res.data.articles.slice(0, 5).map((a) => ({
+        title: a.title,
+        source: a.source.name,
+        url: a.url,
+      }));
+    } catch (err) {
+      return `Error fetching news: ${err.message}`;
+    }
+  },
+
+  generateAIImage: async (prompt) => {
+    console.log(`🎨 [AI-DEBUG] Generating image for: ${prompt}`);
+    const encodedPrompt = encodeURIComponent(prompt);
+    const imageUrl = `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${Math.floor(
+      Math.random() * 1000,
+    )}&model=flux`;
+    // Return a special flag so the frontend knows this is an AI generated image to display
+    return `AI_IMAGE_URL:${imageUrl}`;
+  },
+
+  findDeals: async (query) => {
+    try {
+      console.log(`💰 [AI-DEBUG] Finding deals for: ${query}`);
+      const listings = await Listings.find({
+        $or: [
+          { name: { $regex: query, $options: "i" } },
+          { description: { $regex: query, $options: "i" } },
+        ],
+      })
+        .sort("price")
+        .limit(3)
+        .lean();
+
+      return listings.length > 0
+        ? listings.map((l) => ({
+            name: l.name,
+            price: l.price,
+            link: `ListingDetail:${l._id}`,
+          }))
+        : "No deals found for that search.";
+    } catch (err) {
+      return `Error finding deals: ${err.message}`;
+    }
+  },
+
+  scheduleReminder: async (userId, text, timeInMinutes) => {
+    try {
+      console.log(
+        `⏰ [AI-DEBUG] Scheduling reminder for user ${userId}: ${text} in ${timeInMinutes}m`,
+      );
+      const remindAt = new Date(Date.now() + timeInMinutes * 60000);
+      const reminder = new Reminders({
+        user: userId,
+        text,
+        remindAt,
+      });
+      await reminder.save();
+      // Return a special command string for the frontend to schedule a Local Notification
+      return `COMMAND:REMINDER:${timeInMinutes}:${text}`;
+    } catch (err) {
+      return `Error scheduling reminder: ${err.message}`;
     }
   },
 
@@ -88,7 +181,7 @@ const aiCtrl = {
     return `COMMAND:NAVIGATE:${screenName}`;
   },
 
-  generateAIResponse: async (history, currentMessage) => {
+  generateAIResponse: async (history, currentMessage, currentUserId) => {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
@@ -168,22 +261,24 @@ const aiCtrl = {
           const model = genAI.getGenerativeModel({
             model: modelId,
             systemInstruction: `You are the Official AI Assistant for instaBook, a social media app. 
-            You have access to tools to search for users, posts, and marketplace listings, and to navigate the user to different parts of the app.
+            You have access to tools for search, navigation, weather, news, image generation, and reminders.
             
             Available Screens for Navigation:
-            - Marketplace: Buy and sell items
-            - Map: View location sharing and shared posts on a map
-            - Discover: Explore new content
-            - Notifications: See app notifications
-            - Profile: User's personal profile
-            - CreatePost: Create a new post
-            - CreateListing: Post an item for sale in Marketplace
+            - Marketplace, Map, Discover, Notifications, Profile, CreatePost, CreateListing
             
-            When a user asks to "go to", "open", or "show" one of these screens, use the 'navigateApp' tool.
-            If a user asks to find something, use the appropriate search tool first.
-            If you find information, summarize it concisely and helpfully.
+            REMINDERS:
+            When a user asks to be reminded (e.g., "remind me to check marketplace in 10 minutes"), use 'scheduleReminder'.
             
-            IMPORTANT: If you use the 'navigateApp' tool, ALWAYS include the exact string "COMMAND:NAVIGATE:[ScreenName]" in your final response to the user so the app can detect it, while also explaining to the user in natural language that you are helping them navigate.`,
+            IMAGE GENERATION:
+            When a user asks to generate/create an image, use 'generateAIImage'. Tell the user you've generated the image and it will appear in the chat.
+            
+            WEATHER & NEWS:
+            Provide real-time updates using 'getWeather' and 'getNews'.
+            
+            DEAL FINDER:
+            If a user wants the cheapest items or "best deals", use 'findDeals'.
+            
+            IMPORTANT: If you use 'navigateApp' or 'scheduleReminder', include the COMMAND string in your final response.`,
           });
 
           // Simple tool definitions for Gemini 1.5
@@ -225,18 +320,63 @@ const aiCtrl = {
                 },
                 {
                   name: "navigateApp",
-                  description:
-                    "Navigate the user to a specific screen in the app",
+                  description: "Navigate the user to a specific screen",
                   parameters: {
                     type: "OBJECT",
                     properties: {
-                      screenName: {
-                        type: "STRING",
-                        description:
-                          "The target screen name (e.g., Marketplace, Map, Discover, Profile, CreatePost, CreateListing)",
-                      },
+                      screenName: { type: "STRING" },
                     },
                     required: ["screenName"],
+                  },
+                },
+                {
+                  name: "getWeather",
+                  description: "Get current weather for a city",
+                  parameters: {
+                    type: "OBJECT",
+                    properties: {
+                      city: { type: "STRING" },
+                    },
+                    required: ["city"],
+                  },
+                },
+                {
+                  name: "getNews",
+                  description: "Get top headlines",
+                },
+                {
+                  name: "generateAIImage",
+                  description: "Generate an image based on a prompt",
+                  parameters: {
+                    type: "OBJECT",
+                    properties: {
+                      prompt: { type: "STRING" },
+                    },
+                    required: ["prompt"],
+                  },
+                },
+                {
+                  name: "findDeals",
+                  description:
+                    "Find the best deals/lowest prices in marketplace",
+                  parameters: {
+                    type: "OBJECT",
+                    properties: {
+                      query: { type: "STRING" },
+                    },
+                    required: ["query"],
+                  },
+                },
+                {
+                  name: "scheduleReminder",
+                  description: "Set a reminder for the user",
+                  parameters: {
+                    type: "OBJECT",
+                    properties: {
+                      text: { type: "STRING" },
+                      timeInMinutes: { type: "NUMBER" },
+                    },
+                    required: ["text", "timeInMinutes"],
                   },
                 },
               ],
@@ -275,6 +415,30 @@ const aiCtrl = {
             } else if (functionCall.name === "navigateApp") {
               functionResponse = await aiCtrl.navigateApp(
                 functionCall.args.screenName,
+              );
+            } else if (functionCall.name === "getWeather") {
+              functionResponse = await aiCtrl.getWeather(
+                functionCall.args.city,
+              );
+            } else if (functionCall.name === "getNews") {
+              functionResponse = await aiCtrl.getNews();
+            } else if (functionCall.name === "generateAIImage") {
+              functionResponse = await aiCtrl.generateAIImage(
+                functionCall.args.prompt,
+              );
+            } else if (functionCall.name === "findDeals") {
+              functionResponse = await aiCtrl.findDeals(
+                functionCall.args.query,
+              );
+            } else if (functionCall.name === "scheduleReminder") {
+              // We need the user ID for reminders
+              // currentMessage is just the text, but the parent function generateAIResponse is called inside createMessage in messageCtrl.js which has access to the user
+              // Let's assume history[history.length-1].user or similar, but history items are simplified
+              // I'll need to pass userId to generateAIResponse
+              functionResponse = await aiCtrl.scheduleReminder(
+                currentUserId, // Need to add this as an argument
+                functionCall.args.text,
+                functionCall.args.timeInMinutes,
               );
             }
 
