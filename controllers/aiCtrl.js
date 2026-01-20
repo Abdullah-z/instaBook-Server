@@ -285,10 +285,31 @@ const aiCtrl = {
                 },
               },
             ]);
-            return result2.response.text();
+
+            // Format results for the frontend if it's a search tool
+            let searchResults = null;
+            if (Array.isArray(functionResponse)) {
+              searchResults = functionResponse.map((item) => ({
+                ...item,
+                type:
+                  functionCall.name === "searchUsers"
+                    ? "user"
+                    : functionCall.name === "searchPosts"
+                      ? "post"
+                      : "listing",
+              }));
+            }
+
+            return {
+              text: result2.response.text(),
+              searchResults,
+            };
           }
 
-          return response.text();
+          return {
+            text: response.text(),
+            searchResults: null,
+          };
         } catch (modelErr) {
           console.warn(
             `⚠️ [AI-DEBUG] Model ${modelId} failed:`,
@@ -302,7 +323,10 @@ const aiCtrl = {
       throw lastError || new Error("All models failed to respond.");
     } catch (err) {
       console.error("❌ [AI-DEBUG] Global Error:", err.message);
-      return `I'm having trouble processing that right now. (Error: ${err.message})`;
+      return {
+        text: `I'm having trouble processing that right now. (Error: ${err.message})`,
+        searchResults: null,
+      };
     }
   },
 };

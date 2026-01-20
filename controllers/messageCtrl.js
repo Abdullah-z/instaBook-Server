@@ -51,7 +51,7 @@ const messageCtrl = {
           {
             text: text || (location ? "📍 Shared a location" : ""),
             media,
-          }
+          },
         );
 
         return res.json({ msg: "Created.", newMessage });
@@ -64,8 +64,8 @@ const messageCtrl = {
           call.status === "missed"
             ? "Missed"
             : call.status === "rejected"
-            ? "Declined"
-            : "";
+              ? "Declined"
+              : "";
         conversationText = `${statusText} ${
           call.video ? "video" : "voice"
         } call`.trim();
@@ -87,7 +87,7 @@ const messageCtrl = {
           text: conversationText,
           media,
         },
-        { new: true, upsert: true }
+        { new: true, upsert: true },
       );
 
       const newMessage = new Messages({
@@ -114,16 +114,15 @@ const messageCtrl = {
           .limit(10)
           .populate("sender", "role");
 
-        const aiResponseText = await aiCtrl.generateAIResponse(
-          history.reverse(),
-          text
-        );
+        const { text: aiResponseText, searchResults } =
+          await aiCtrl.generateAIResponse(history.reverse(), text);
 
         const aiMessage = new Messages({
           conversation: newConversation._id,
           sender: recipient, // AI Assistant
           recipient: req.user._id,
           text: aiResponseText,
+          searchResults: searchResults, // Save the structural results
         });
 
         await aiMessage.save();
@@ -176,7 +175,7 @@ const messageCtrl = {
         Conversations.find({
           recipients: req.user._id,
         }),
-        req.query
+        req.query,
       ).paginating();
 
       const conversations = await features.query

@@ -14,10 +14,11 @@ const messageSchema = new Schema(
       lon: Number,
       address: String,
     },
+    searchResults: Array,
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("message", messageSchema);
