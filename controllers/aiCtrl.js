@@ -197,10 +197,12 @@ const aiCtrl = {
       const genAI = new GoogleGenerativeAI(apiKey);
 
       const modelNames = [
-        "gemini-1.5-flash",
-        "gemini-3-flash",
         "gemini-2.5-flash-lite",
+        "gemini-2.0-flash-exp",
+        "gemini-3-flash",
+        "gemini-2.5-flash",
         "gemini-1.5-flash-8b",
+        "gemini-1.5-flash",
       ];
       let lastError = null;
 
@@ -263,6 +265,7 @@ const aiCtrl = {
           const model = genAI.getGenerativeModel({
             model: modelId,
             systemInstruction: `You are the Official AI Assistant for instaBook, a social media app. 
+            Your name is Capricon AI.
             You have access to tools for search, navigation, weather, news, image generation, and reminders.
             
             Available Screens for Navigation:
@@ -283,7 +286,7 @@ const aiCtrl = {
             IMPORTANT: If you use 'navigateApp' or 'scheduleReminder', include the COMMAND string in your final response.`,
           });
 
-          // Simple tool definitions for Gemini 1.5
+          // Simple tool definitions for Gemini 1.5/2.x
           const tools = [
             {
               functionDeclarations: [
@@ -433,12 +436,8 @@ const aiCtrl = {
                 functionCall.args.query,
               );
             } else if (functionCall.name === "scheduleReminder") {
-              // We need the user ID for reminders
-              // currentMessage is just the text, but the parent function generateAIResponse is called inside createMessage in messageCtrl.js which has access to the user
-              // Let's assume history[history.length-1].user or similar, but history items are simplified
-              // I'll need to pass userId to generateAIResponse
               functionResponse = await aiCtrl.scheduleReminder(
-                currentUserId, // Need to add this as an argument
+                currentUserId,
                 functionCall.args.text,
                 functionCall.args.timeInMinutes,
               );
@@ -493,23 +492,24 @@ const aiCtrl = {
             `⚠️ [AI-DEBUG] Model ${modelId} failed:`,
             modelErr.message,
           );
-
-          // If the primary model hits a quota limit (429), don't try fallback models
-          // as they often share the same quota or are specialized.
-          if (
-            modelErr.message.includes("429") ||
-            modelErr.message.includes("quota")
-          ) {
-            return {
-              text: "I've reached my Gemini Free Tier limit for the next few minutes. Please try again shortly!",
-              searchResults: null,
-              weatherData: null,
-            };
-          }
-
           lastError = modelErr;
+          // Continue to next model on ANY error (404, 429, etc.)
           continue;
         }
+      }
+
+      // If we reach here, all models failed.
+      // Check if the last error was a quota issue to provide a helpful message.
+      if (
+        lastError &&
+        (lastError.message.includes("429") ||
+          lastError.message.includes("quota"))
+      ) {
+        return {
+          text: "I've reached my daily limits across all available AI models. Please try again in a few hours! (Google AI Free Tier limits apply)",
+          searchResults: null,
+          weatherData: null,
+        };
       }
 
       throw lastError || new Error("All models failed to respond.");
