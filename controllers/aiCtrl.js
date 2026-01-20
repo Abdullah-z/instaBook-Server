@@ -16,10 +16,12 @@ const aiCtrl = {
       })
         .select("username fullname avatar")
         .limit(5)
-        .lean(); // Use lean() for plain objects
+        .lean();
 
       console.log(`✅ [AI-DEBUG] Found ${users.length} users.`);
-      return users.length > 0 ? users : "No users found matching that query.";
+      return users.length > 0
+        ? users.map((u) => ({ ...u, _id: u._id.toString() }))
+        : "No users found matching that query.";
     } catch (err) {
       console.error(`❌ [AI-DEBUG] Error searching users:`, err.message);
       return "Error searching users.";
@@ -40,6 +42,7 @@ const aiCtrl = {
       console.log(`✅ [AI-DEBUG] Found ${posts.length} posts.`);
       return posts.length > 0
         ? posts.map((p) => ({
+            _id: p._id.toString(),
             content: p.content,
             author: p.user?.username,
             date: p.createdAt,
@@ -66,6 +69,7 @@ const aiCtrl = {
       console.log(`✅ [AI-DEBUG] Found ${listings.length} listings.`);
       return listings.length > 0
         ? listings.map((l) => ({
+            _id: l._id.toString(),
             name: l.name,
             price: l.price,
             description: l.description,
@@ -163,7 +167,7 @@ const aiCtrl = {
           console.log(`📡 [AI-DEBUG] Trying model: ${modelId}`);
           const model = genAI.getGenerativeModel({
             model: modelId,
-            systemInstruction: `You are the Official AI Assistant for Pipel, a social media app. 
+            systemInstruction: `You are the Official AI Assistant for instaBook, a social media app. 
             You have access to tools to search for users, posts, and marketplace listings, and to navigate the user to different parts of the app.
             
             Available Screens for Navigation:
