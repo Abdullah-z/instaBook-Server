@@ -255,6 +255,12 @@ const aiCtrl = {
         "gemini-2.5-flash",
         "gemini-2.5-flash-preview-tts",
         "gemini-flash-latest",
+        "gemini-flash-lite-latest",
+        "gemini-exp-1206",
+        "gemini-2.0-flash-lite-preview",
+        "gemini-2.0-flash-001",
+        "gemma-3-27b-it", // 14,000+ RPD fallback
+        "gemma-3-12b-it",
       ];
       let lastError = null;
 
@@ -314,9 +320,16 @@ const aiCtrl = {
       for (const modelId of modelNames) {
         try {
           console.log(`📡 [AI-DEBUG] Trying model: ${modelId}`);
-          const model = genAI.getGenerativeModel({
+
+          // Gemma models do NOT support tool calling/system instructions in the same way
+          const isGemma = modelId.startsWith("gemma");
+
+          const modelConfigs = {
             model: modelId,
-            systemInstruction: `You are the Official AI Assistant for instaBook, a social media app. 
+          };
+
+          if (!isGemma) {
+            modelConfigs.systemInstruction = `You are the Official AI Assistant for instaBook, a social media app. 
             Your name is Capricon AI.
             The current date and time is ${new Date().toLocaleString()}.
             
@@ -337,113 +350,127 @@ const aiCtrl = {
             DEAL FINDER:
             If a user wants the cheapest items or "best deals", use 'findDeals'.
             
-            IMPORTANT: If you use 'navigateApp' or 'scheduleReminder', include the COMMAND string in your final response.`,
-          });
+            IMPORTANT: If you use 'navigateApp' or 'scheduleReminder', include the COMMAND string in your final response.`;
+          }
+
+          const model = genAI.getGenerativeModel(modelConfigs);
 
           // Simple tool definitions for Gemini 1.5/2.x
-          const tools = [
-            {
-              functionDeclarations: [
+          const tools = isGemma
+            ? []
+            : [
                 {
-                  name: "searchUsers",
-                  description: "Search for users by username or fullname",
-                  parameters: {
-                    type: "OBJECT",
-                    properties: {
-                      query: { type: "STRING", description: "The search term" },
+                  functionDeclarations: [
+                    {
+                      name: "searchUsers",
+                      description: "Search for users by username or fullname",
+                      parameters: {
+                        type: "OBJECT",
+                        properties: {
+                          query: {
+                            type: "STRING",
+                            description: "The search term",
+                          },
+                        },
+                        required: ["query"],
+                      },
                     },
-                    required: ["query"],
-                  },
-                },
-                {
-                  name: "searchPosts",
-                  description: "Search for public posts by content",
-                  parameters: {
-                    type: "OBJECT",
-                    properties: {
-                      query: { type: "STRING", description: "The search term" },
+                    {
+                      name: "searchPosts",
+                      description: "Search for public posts by content",
+                      parameters: {
+                        type: "OBJECT",
+                        properties: {
+                          query: {
+                            type: "STRING",
+                            description: "The search term",
+                          },
+                        },
+                        required: ["query"],
+                      },
                     },
-                    required: ["query"],
-                  },
-                },
-                {
-                  name: "searchMarketplace",
-                  description: "Search for items for sale in the marketplace",
-                  parameters: {
-                    type: "OBJECT",
-                    properties: {
-                      query: { type: "STRING", description: "The search term" },
+                    {
+                      name: "searchMarketplace",
+                      description:
+                        "Search for items for sale in the marketplace",
+                      parameters: {
+                        type: "OBJECT",
+                        properties: {
+                          query: {
+                            type: "STRING",
+                            description: "The search term",
+                          },
+                        },
+                        required: ["query"],
+                      },
                     },
-                    required: ["query"],
-                  },
-                },
-                {
-                  name: "navigateApp",
-                  description: "Navigate the user to a specific screen",
-                  parameters: {
-                    type: "OBJECT",
-                    properties: {
-                      screenName: { type: "STRING" },
+                    {
+                      name: "navigateApp",
+                      description: "Navigate the user to a specific screen",
+                      parameters: {
+                        type: "OBJECT",
+                        properties: {
+                          screenName: { type: "STRING" },
+                        },
+                        required: ["screenName"],
+                      },
                     },
-                    required: ["screenName"],
-                  },
-                },
-                {
-                  name: "getWeather",
-                  description: "Get current weather for a city",
-                  parameters: {
-                    type: "OBJECT",
-                    properties: {
-                      city: { type: "STRING" },
+                    {
+                      name: "getWeather",
+                      description: "Get current weather for a city",
+                      parameters: {
+                        type: "OBJECT",
+                        properties: {
+                          city: { type: "STRING" },
+                        },
+                        required: ["city"],
+                      },
                     },
-                    required: ["city"],
-                  },
-                },
-                {
-                  name: "getNews",
-                  description: "Get top headlines",
-                },
-                {
-                  name: "generateAIImage",
-                  description: "Generate an image based on a prompt",
-                  parameters: {
-                    type: "OBJECT",
-                    properties: {
-                      prompt: { type: "STRING" },
+                    {
+                      name: "getNews",
+                      description: "Get top headlines",
                     },
-                    required: ["prompt"],
-                  },
-                },
-                {
-                  name: "findDeals",
-                  description:
-                    "Find the best deals/lowest prices in marketplace",
-                  parameters: {
-                    type: "OBJECT",
-                    properties: {
-                      query: { type: "STRING" },
+                    {
+                      name: "generateAIImage",
+                      description: "Generate an image based on a prompt",
+                      parameters: {
+                        type: "OBJECT",
+                        properties: {
+                          prompt: { type: "STRING" },
+                        },
+                        required: ["prompt"],
+                      },
                     },
-                    required: ["query"],
-                  },
-                },
-                {
-                  name: "scheduleReminder",
-                  description: "Set a reminder for the user",
-                  parameters: {
-                    type: "OBJECT",
-                    properties: {
-                      text: { type: "STRING" },
-                      timeInMinutes: { type: "NUMBER" },
+                    {
+                      name: "findDeals",
+                      description:
+                        "Find the best deals/lowest prices in marketplace",
+                      parameters: {
+                        type: "OBJECT",
+                        properties: {
+                          query: { type: "STRING" },
+                        },
+                        required: ["query"],
+                      },
                     },
-                    required: ["text", "timeInMinutes"],
-                  },
+                    {
+                      name: "scheduleReminder",
+                      description: "Set a reminder for the user",
+                      parameters: {
+                        type: "OBJECT",
+                        properties: {
+                          text: { type: "STRING" },
+                          timeInMinutes: { type: "NUMBER" },
+                        },
+                        required: ["text", "timeInMinutes"],
+                      },
+                    },
+                  ],
                 },
-              ],
-            },
-          ];
+              ];
 
           const chat = model.startChat({
-            tools: tools,
+            tools: isGemma ? undefined : tools,
             history: validatedHistory,
           });
 
