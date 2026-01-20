@@ -197,11 +197,9 @@ const aiCtrl = {
       const genAI = new GoogleGenerativeAI(apiKey);
 
       const modelNames = [
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash-exp",
         "gemini-3-flash",
+        "gemini-2.5-flash-lite",
         "gemini-2.5-flash",
-        "gemini-1.5-flash-8b",
         "gemini-1.5-flash",
       ];
       let lastError = null;
@@ -266,6 +264,8 @@ const aiCtrl = {
             model: modelId,
             systemInstruction: `You are the Official AI Assistant for instaBook, a social media app. 
             Your name is Capricon AI.
+            The current date and time is ${new Date().toLocaleString()}.
+            
             You have access to tools for search, navigation, weather, news, image generation, and reminders.
             
             Available Screens for Navigation:
