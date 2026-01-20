@@ -7,6 +7,7 @@ const aiCtrl = {
   // Helper functions for AI to call
   searchUsers: async (query) => {
     try {
+      console.log(`🔍 [AI-DEBUG] Searching users for: "${query}"`);
       const users = await Users.find({
         $or: [
           { username: { $regex: query, $options: "i" } },
@@ -14,21 +15,29 @@ const aiCtrl = {
         ],
       })
         .select("username fullname avatar")
-        .limit(5);
+        .limit(5)
+        .lean(); // Use lean() for plain objects
+
+      console.log(`✅ [AI-DEBUG] Found ${users.length} users.`);
       return users.length > 0 ? users : "No users found matching that query.";
     } catch (err) {
+      console.error(`❌ [AI-DEBUG] Error searching users:`, err.message);
       return "Error searching users.";
     }
   },
 
   searchPosts: async (query) => {
     try {
+      console.log(`🔍 [AI-DEBUG] Searching posts for: "${query}"`);
       const posts = await Posts.find({
         content: { $regex: query, $options: "i" },
       })
         .populate("user", "username fullname")
         .sort("-createdAt")
-        .limit(5);
+        .limit(5)
+        .lean();
+
+      console.log(`✅ [AI-DEBUG] Found ${posts.length} posts.`);
       return posts.length > 0
         ? posts.map((p) => ({
             content: p.content,
@@ -37,18 +46,24 @@ const aiCtrl = {
           }))
         : "No posts found matching that query.";
     } catch (err) {
+      console.error(`❌ [AI-DEBUG] Error searching posts:`, err.message);
       return "Error searching posts.";
     }
   },
 
   searchMarketplace: async (query) => {
     try {
+      console.log(`🔍 [AI-DEBUG] Searching marketplace for: "${query}"`);
       const listings = await Listings.find({
         $or: [
           { name: { $regex: query, $options: "i" } },
           { description: { $regex: query, $options: "i" } },
         ],
-      }).limit(5);
+      })
+        .limit(5)
+        .lean();
+
+      console.log(`✅ [AI-DEBUG] Found ${listings.length} listings.`);
       return listings.length > 0
         ? listings.map((l) => ({
             name: l.name,
@@ -58,11 +73,13 @@ const aiCtrl = {
           }))
         : "No marketplace listings found matching that query.";
     } catch (err) {
+      console.error(`❌ [AI-DEBUG] Error searching marketplace:`, err.message);
       return "Error searching marketplace.";
     }
   },
 
   navigateApp: async (screenName) => {
+    console.log(`🤖 [AI-DEBUG] Navigation triggered for: "${screenName}"`);
     // Return a special command string that the frontend will interpret
     return `COMMAND:NAVIGATE:${screenName}`;
   },
@@ -71,11 +88,13 @@ const aiCtrl = {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
+        console.error("❌ [AI-DEBUG] GEMINI_API_KEY is missing!");
         return "I'm sorry, my Gemini API key is not configured.";
       }
 
+      console.log(`🤖 [AI-DEBUG] Generating response for: "${currentMessage}"`);
       const genAI = new GoogleGenerativeAI(apiKey);
-      const modelId = "gemini-1.5-flash"; // Reliable model for function calling
+      const modelId = "gemini-1.5-flash";
 
       const model = genAI.getGenerativeModel({
         model: modelId,
@@ -154,12 +173,33 @@ const aiCtrl = {
         },
       ];
 
+      // Fix history mapping: ensure text is always a string and role is correct
+      const chatHistory = history
+        .map((h) => {
+          let textParts = [];
+          if (h.text) textParts.push({ text: h.text });
+          if (h.location)
+            textParts.push({
+              text: `📍 [Shared Location: ${h.location.address || "Unknown"}]`,
+            });
+          if (h.media && h.media.length > 0)
+            textParts.push({ text: `🖼️ [Shared ${h.media.length} images]` });
+
+          if (textParts.length === 0) return null;
+
+          return {
+            role:
+              h.sender?.role === "ai_assistant" || h.sender === "ai_assistant"
+                ? "model"
+                : "user",
+            parts: textParts,
+          };
+        })
+        .filter((h) => h !== null);
+
       const chat = model.startChat({
         tools: tools,
-        history: history.map((h) => ({
-          role: h.sender?.role === "ai_assistant" ? "model" : "user",
-          parts: [{ text: h.text }],
-        })),
+        history: chatHistory,
       });
 
       const result = await chat.sendMessage(currentMessage);
@@ -168,6 +208,10 @@ const aiCtrl = {
 
       if (call) {
         const functionCall = call[0];
+        console.log(
+          `📡 [AI-DEBUG] Tool called: ${functionCall.name}`,
+          functionCall.args,
+        );
         let functionResponse;
 
         if (functionCall.name === "searchUsers") {
@@ -184,6 +228,9 @@ const aiCtrl = {
           );
         }
 
+        console.log(
+          `🔋 [AI-DEBUG] Tool response ready. Sending back to model...`,
+        );
         const result2 = await chat.sendMessage([
           {
             functionResponse: {
@@ -197,8 +244,9 @@ const aiCtrl = {
 
       return response.text();
     } catch (err) {
-      console.error("❌ AI Error:", err.message);
-      return "I'm having trouble processing that right now. Please try again later.";
+      console.error("❌ [AI-DEBUG] Controller Error:", err.message);
+      if (err.stack) console.error(err.stack);
+      return `I'm having trouble processing that right now. (Error: ${err.message})`;
     }
   },
 };
