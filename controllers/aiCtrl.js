@@ -198,9 +198,9 @@ const aiCtrl = {
 
       const modelNames = [
         "gemini-1.5-flash",
-        "gemini-2.0-flash-exp",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-pro",
+        "gemini-3-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-1.5-flash-8b",
       ];
       let lastError = null;
 
@@ -493,6 +493,20 @@ const aiCtrl = {
             `⚠️ [AI-DEBUG] Model ${modelId} failed:`,
             modelErr.message,
           );
+
+          // If the primary model hits a quota limit (429), don't try fallback models
+          // as they often share the same quota or are specialized.
+          if (
+            modelErr.message.includes("429") ||
+            modelErr.message.includes("quota")
+          ) {
+            return {
+              text: "I've reached my Gemini Free Tier limit for the next few minutes. Please try again shortly!",
+              searchResults: null,
+              weatherData: null,
+            };
+          }
+
           lastError = modelErr;
           continue;
         }
@@ -504,6 +518,7 @@ const aiCtrl = {
       return {
         text: `I'm having trouble processing that right now. (Error: ${err.message})`,
         searchResults: null,
+        weatherData: null,
       };
     }
   },
