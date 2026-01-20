@@ -196,7 +196,7 @@ const aiCtrl = {
       console.log(`🤖 [AI-DEBUG] Generating response for: "${currentMessage}"`);
       const genAI = new GoogleGenerativeAI(apiKey);
 
-      const modelNames = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
+      const modelNames = ["gemini-1.5-flash", "gemini-1.5-pro"];
       let lastError = null;
 
       // Fix history mapping: ensure text is always a string and role is correct
