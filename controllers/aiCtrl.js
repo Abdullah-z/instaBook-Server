@@ -94,98 +94,43 @@ const aiCtrl = {
 
       console.log(`🤖 [AI-DEBUG] Generating response for: "${currentMessage}"`);
       const genAI = new GoogleGenerativeAI(apiKey);
-      const modelId = "gemini-1.5-flash";
 
-      const model = genAI.getGenerativeModel({
-        model: modelId,
-        systemInstruction: `You are the Official AI Assistant for Pipel, a social media app. 
-        You have access to tools to search for users, posts, and marketplace listings, and to navigate the user to different parts of the app.
-        
-        Available Screens for Navigation:
-        - Marketplace: Buy and sell items
-        - Map: View location sharing and shared posts on a map
-        - Discover: Explore new content
-        - Notifications: See app notifications
-        - Profile: User's personal profile
-        - CreatePost: Create a new post
-        - CreateListing: Post an item for sale in Marketplace
-        
-        When a user asks to "go to", "open", or "show" one of these screens, use the 'navigateApp' tool.
-        If a user asks to find something, use the appropriate search tool first.
-        If you find information, summarize it concisely and helpfully.
-        
-        IMPORTANT: If you use the 'navigateApp' tool, ALWAYS include the exact string "COMMAND:NAVIGATE:[ScreenName]" in your final response to the user so the app can detect it, while also explaining to the user in natural language that you are helping them navigate.`,
-      });
-
-      // Simple tool definitions for Gemini 1.5
-      const tools = [
-        {
-          functionDeclarations: [
-            {
-              name: "searchUsers",
-              description: "Search for users by username or fullname",
-              parameters: {
-                type: "OBJECT",
-                properties: {
-                  query: { type: "STRING", description: "The search term" },
-                },
-                required: ["query"],
-              },
-            },
-            {
-              name: "searchPosts",
-              description: "Search for public posts by content",
-              parameters: {
-                type: "OBJECT",
-                properties: {
-                  query: { type: "STRING", description: "The search term" },
-                },
-                required: ["query"],
-              },
-            },
-            {
-              name: "searchMarketplace",
-              description: "Search for items for sale in the marketplace",
-              parameters: {
-                type: "OBJECT",
-                properties: {
-                  query: { type: "STRING", description: "The search term" },
-                },
-                required: ["query"],
-              },
-            },
-            {
-              name: "navigateApp",
-              description: "Navigate the user to a specific screen in the app",
-              parameters: {
-                type: "OBJECT",
-                properties: {
-                  screenName: {
-                    type: "STRING",
-                    description:
-                      "The target screen name (e.g., Marketplace, Map, Discover, Profile, CreatePost, CreateListing)",
-                  },
-                },
-                required: ["screenName"],
-              },
-            },
-          ],
-        },
+      const modelNames = [
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-3-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+        "gemini-pro",
       ];
+      let lastError = null;
 
       // Fix history mapping: ensure text is always a string and role is correct
       const chatHistory = history
         .map((h) => {
           let textParts = [];
-          if (h.text) textParts.push({ text: h.text });
-          if (h.location)
+
+          // Ensure we have at least SOME text for each part
+          if (h.text && h.text.trim()) {
+            textParts.push({ text: h.text });
+          }
+
+          if (h.location) {
             textParts.push({
               text: `📍 [Shared Location: ${h.location.address || "Unknown"}]`,
             });
-          if (h.media && h.media.length > 0)
-            textParts.push({ text: `🖼️ [Shared ${h.media.length} images]` });
+          }
 
-          if (textParts.length === 0) return null;
+          if (h.media && h.media.length > 0) {
+            textParts.push({ text: `🖼️ [Shared ${h.media.length} images]` });
+          }
+
+          // Gemini history requires at least one part with text
+          if (textParts.length === 0) {
+            // If it's a completely empty message (e.g. just a deleted msg or something),
+            // we should probably skip it or provide a placeholder
+            return null;
+          }
 
           return {
             role:
@@ -197,55 +142,150 @@ const aiCtrl = {
         })
         .filter((h) => h !== null);
 
-      const chat = model.startChat({
-        tools: tools,
-        history: chatHistory,
-      });
+      for (const modelId of modelNames) {
+        try {
+          console.log(`📡 [AI-DEBUG] Trying model: ${modelId}`);
+          const model = genAI.getGenerativeModel({
+            model: modelId,
+            systemInstruction: `You are the Official AI Assistant for Pipel, a social media app. 
+            You have access to tools to search for users, posts, and marketplace listings, and to navigate the user to different parts of the app.
+            
+            Available Screens for Navigation:
+            - Marketplace: Buy and sell items
+            - Map: View location sharing and shared posts on a map
+            - Discover: Explore new content
+            - Notifications: See app notifications
+            - Profile: User's personal profile
+            - CreatePost: Create a new post
+            - CreateListing: Post an item for sale in Marketplace
+            
+            When a user asks to "go to", "open", or "show" one of these screens, use the 'navigateApp' tool.
+            If a user asks to find something, use the appropriate search tool first.
+            If you find information, summarize it concisely and helpfully.
+            
+            IMPORTANT: If you use the 'navigateApp' tool, ALWAYS include the exact string "COMMAND:NAVIGATE:[ScreenName]" in your final response to the user so the app can detect it, while also explaining to the user in natural language that you are helping them navigate.`,
+          });
 
-      const result = await chat.sendMessage(currentMessage);
-      const response = result.response;
-      const call = response.functionCalls();
-
-      if (call) {
-        const functionCall = call[0];
-        console.log(
-          `📡 [AI-DEBUG] Tool called: ${functionCall.name}`,
-          functionCall.args,
-        );
-        let functionResponse;
-
-        if (functionCall.name === "searchUsers") {
-          functionResponse = await aiCtrl.searchUsers(functionCall.args.query);
-        } else if (functionCall.name === "searchPosts") {
-          functionResponse = await aiCtrl.searchPosts(functionCall.args.query);
-        } else if (functionCall.name === "searchMarketplace") {
-          functionResponse = await aiCtrl.searchMarketplace(
-            functionCall.args.query,
-          );
-        } else if (functionCall.name === "navigateApp") {
-          functionResponse = await aiCtrl.navigateApp(
-            functionCall.args.screenName,
-          );
-        }
-
-        console.log(
-          `🔋 [AI-DEBUG] Tool response ready. Sending back to model...`,
-        );
-        const result2 = await chat.sendMessage([
-          {
-            functionResponse: {
-              name: functionCall.name,
-              response: { content: functionResponse },
+          // Simple tool definitions for Gemini 1.5
+          const tools = [
+            {
+              functionDeclarations: [
+                {
+                  name: "searchUsers",
+                  description: "Search for users by username or fullname",
+                  parameters: {
+                    type: "OBJECT",
+                    properties: {
+                      query: { type: "STRING", description: "The search term" },
+                    },
+                    required: ["query"],
+                  },
+                },
+                {
+                  name: "searchPosts",
+                  description: "Search for public posts by content",
+                  parameters: {
+                    type: "OBJECT",
+                    properties: {
+                      query: { type: "STRING", description: "The search term" },
+                    },
+                    required: ["query"],
+                  },
+                },
+                {
+                  name: "searchMarketplace",
+                  description: "Search for items for sale in the marketplace",
+                  parameters: {
+                    type: "OBJECT",
+                    properties: {
+                      query: { type: "STRING", description: "The search term" },
+                    },
+                    required: ["query"],
+                  },
+                },
+                {
+                  name: "navigateApp",
+                  description:
+                    "Navigate the user to a specific screen in the app",
+                  parameters: {
+                    type: "OBJECT",
+                    properties: {
+                      screenName: {
+                        type: "STRING",
+                        description:
+                          "The target screen name (e.g., Marketplace, Map, Discover, Profile, CreatePost, CreateListing)",
+                      },
+                    },
+                    required: ["screenName"],
+                  },
+                },
+              ],
             },
-          },
-        ]);
-        return result2.response.text();
+          ];
+
+          const chat = model.startChat({
+            tools: tools,
+            history: chatHistory,
+          });
+
+          const result = await chat.sendMessage(currentMessage);
+          const response = result.response;
+          const call = response.functionCalls();
+
+          if (call) {
+            const functionCall = call[0];
+            console.log(
+              `📡 [AI-DEBUG] Tool called: ${functionCall.name}`,
+              functionCall.args,
+            );
+            let functionResponse;
+
+            if (functionCall.name === "searchUsers") {
+              functionResponse = await aiCtrl.searchUsers(
+                functionCall.args.query,
+              );
+            } else if (functionCall.name === "searchPosts") {
+              functionResponse = await aiCtrl.searchPosts(
+                functionCall.args.query,
+              );
+            } else if (functionCall.name === "searchMarketplace") {
+              functionResponse = await aiCtrl.searchMarketplace(
+                functionCall.args.query,
+              );
+            } else if (functionCall.name === "navigateApp") {
+              functionResponse = await aiCtrl.navigateApp(
+                functionCall.args.screenName,
+              );
+            }
+
+            console.log(
+              `🔋 [AI-DEBUG] Tool response ready. Sending back to model...`,
+            );
+            const result2 = await chat.sendMessage([
+              {
+                functionResponse: {
+                  name: functionCall.name,
+                  response: { content: functionResponse },
+                },
+              },
+            ]);
+            return result2.response.text();
+          }
+
+          return response.text();
+        } catch (modelErr) {
+          console.warn(
+            `⚠️ [AI-DEBUG] Model ${modelId} failed:`,
+            modelErr.message,
+          );
+          lastError = modelErr;
+          continue;
+        }
       }
 
-      return response.text();
+      throw lastError || new Error("All models failed to respond.");
     } catch (err) {
-      console.error("❌ [AI-DEBUG] Controller Error:", err.message);
-      if (err.stack) console.error(err.stack);
+      console.error("❌ [AI-DEBUG] Global Error:", err.message);
       return `I'm having trouble processing that right now. (Error: ${err.message})`;
     }
   },
