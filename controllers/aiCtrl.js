@@ -4,6 +4,13 @@ const Posts = require("../models/postModel");
 const Listings = require("../models/listingModel");
 const Reminders = require("../models/reminderModel");
 const axios = require("axios");
+const cloudinary = require("cloudinary").v2;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const aiCtrl = {
   // Helper functions for AI to call
@@ -122,12 +129,57 @@ const aiCtrl = {
   },
 
   generateAIImage: async (prompt) => {
-    console.log(`🎨 [AI-DEBUG] Generating image for: ${prompt}`);
+    try {
+      console.log(
+        `🎨 [AI-DEBUG] Attempting generation with Nano Banana Pro: ${prompt}`,
+      );
+      const apiKey = process.env.GEMINI_API_KEY;
+      const genAI = new GoogleGenerativeAI(apiKey);
+
+      // Use the specific experimental model ID for direct image generation
+      const model = genAI.getGenerativeModel({
+        model: "nano-banana-pro-preview",
+      });
+
+      // Image generation models usually expect the prompt
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+
+      // Check if the response contains raw image data (InlineData)
+      const parts = response.candidates?.[0]?.content?.parts || [];
+      const imagePart = parts.find(
+        (p) => p.inlineData && p.inlineData.mimeType.startsWith("image/"),
+      );
+
+      if (imagePart) {
+        console.log(
+          `✅ [AI-DEBUG] Native image generated! Uploading to Cloudinary...`,
+        );
+        const base64Data = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+
+        const uploadRes = await cloudinary.uploader.upload(base64Data, {
+          folder: "ai_generated",
+        });
+
+        return `AI_IMAGE_URL:${uploadRes.secure_url}`;
+      }
+
+      console.log(
+        `⚠️ [AI-DEBUG] Nano Banana returned no image data. Falling back to Pollinations...`,
+      );
+    } catch (err) {
+      console.warn(
+        "⚠️ Native image generation failed (likely preview quota or SDK support):",
+        err.message,
+      );
+    }
+
+    // Fallback engine: Pollinations (Flux)
     const encodedPrompt = encodeURIComponent(prompt);
     const imageUrl = `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${Math.floor(
       Math.random() * 1000,
     )}&model=flux`;
-    // Return a special flag so the frontend knows this is an AI generated image to display
+
     return `AI_IMAGE_URL:${imageUrl}`;
   },
 
@@ -198,9 +250,11 @@ const aiCtrl = {
 
       const modelNames = [
         "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-3-flash-preview",
         "gemini-2.5-flash",
-        "gemini-3-flash",
-        "gemini-2.5-flash-tts",
+        "gemini-2.5-flash-preview-tts",
+        "gemini-flash-latest",
       ];
       let lastError = null;
 
