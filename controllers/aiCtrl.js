@@ -106,7 +106,7 @@ const aiCtrl = {
       let lastError = null;
 
       // Fix history mapping: ensure text is always a string and role is correct
-      const chatHistory = history
+      const mappedHistory = history
         .map((h) => {
           let textParts = [];
 
@@ -127,8 +127,6 @@ const aiCtrl = {
 
           // Gemini history requires at least one part with text
           if (textParts.length === 0) {
-            // If it's a completely empty message (e.g. just a deleted msg or something),
-            // we should probably skip it or provide a placeholder
             return null;
           }
 
@@ -141,6 +139,24 @@ const aiCtrl = {
           };
         })
         .filter((h) => h !== null);
+
+      // Validate and clean history for Gemini:
+      // 1. Must start with 'user'
+      // 2. Must alternate roles (User, Model, User, Model...)
+      let validatedHistory = [];
+      for (const msg of mappedHistory) {
+        if (validatedHistory.length === 0) {
+          if (msg.role === "user") validatedHistory.push(msg);
+        } else {
+          const lastMsg = validatedHistory[validatedHistory.length - 1];
+          if (lastMsg.role !== msg.role) {
+            validatedHistory.push(msg);
+          } else {
+            // Merge parts if roles are same
+            lastMsg.parts = lastMsg.parts.concat(msg.parts);
+          }
+        }
+      }
 
       for (const modelId of modelNames) {
         try {
@@ -225,7 +241,7 @@ const aiCtrl = {
 
           const chat = model.startChat({
             tools: tools,
-            history: chatHistory,
+            history: validatedHistory,
           });
 
           const result = await chat.sendMessage(currentMessage);
