@@ -118,6 +118,7 @@ const messageCtrl = {
           text: aiResponseText,
           searchResults,
           weatherData,
+          aiCommand,
         } = await aiCtrl.generateAIResponse(
           history.reverse(),
           text,
@@ -132,6 +133,7 @@ const messageCtrl = {
           text: aiResponseText,
           searchResults: searchResults, // Save the structural results
           weatherData, // Save the weather data
+          aiCommand, // Save the command if any
         });
 
         await aiMessage.save();

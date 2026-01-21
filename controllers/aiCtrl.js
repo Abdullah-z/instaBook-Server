@@ -294,9 +294,10 @@ const aiCtrl = {
             textParts.push({ text: h.text });
           }
 
-          if (h.location) {
+          if (h.location && (h.location.lat || h.location.address)) {
+            const address = h.location.address || "Unknown Address";
             textParts.push({
-              text: `📍 [Shared Location: ${h.location.address || "Unknown"}]`,
+              text: `[METADATA: User shared location: ${address}]`,
             });
           }
 
@@ -351,18 +352,11 @@ const aiCtrl = {
           if (!isGemma) {
             modelConfigs.systemInstruction = `You are the Official AI Assistant for instaBook, a social media app. 
             Your name is Capricon AI.
-            The current date and time is ${
-              clientTime
-                ? new Date(clientTime).toLocaleString()
-                : new Date().toLocaleString()
-            }.
-            User's Local Time: ${clientTime || "Unknown"}
-            Server Time: ${new Date().toLocaleString()}
+            The current date and time is ${clientTime ? clientTime : new Date().toLocaleString()}.
             
-            Always calculate relative times (e.g., "in 10 minutes") based on the provided current date and time.
-            If a user says "remind me at 10 PM", calculate how many minutes from NOW (${
-              clientTime || new Date().toISOString()
-            }) that is.
+            IMPORTANT: Use the date/time string above as the absolute reference for "NOW". 
+            If a user says "remind me at 10 PM", calculate the minutes between THAT specific "NOW" string and 10 PM.
+            Do not assume any other timezone or offset unless the user explicitly mentions one.
             
             You have access to tools for search, navigation, weather, news, image generation, and reminders.
             
@@ -381,7 +375,10 @@ const aiCtrl = {
             DEAL FINDER:
             If a user wants the cheapest items or "best deals", use 'findDeals'.
             
-            IMPORTANT: If you use 'navigateApp' or 'scheduleReminder', include the COMMAND string in your final response.`;
+            IMPORTANT:
+            1. If you use 'navigateApp' or 'scheduleReminder', include the COMMAND string in your final response.
+            2. You may see parts of the message history tagged with '[METADATA: ...]'. This is system context (like shared locations). NEVER include these metadata tags or their content in reminder titles or search queries unless the user specifically asks you to include the location.
+            3. For reminders, the title should only be the task itself (e.g., "go for lunch").`;
           }
 
           const model = genAI.getGenerativeModel(modelConfigs);
@@ -516,6 +513,7 @@ const aiCtrl = {
               functionCall.args,
             );
             let functionResponse;
+            let aiCommand = null;
 
             if (functionCall.name === "searchUsers") {
               functionResponse = await aiCtrl.searchUsers(
@@ -530,9 +528,15 @@ const aiCtrl = {
                 functionCall.args.query,
               );
             } else if (functionCall.name === "navigateApp") {
-              functionResponse = await aiCtrl.navigateApp(
+              const res = await aiCtrl.navigateApp(
                 functionCall.args.screenName,
               );
+              if (typeof res === "string" && res.startsWith("COMMAND:")) {
+                aiCommand = res;
+                functionResponse = `Success: Navigating the user to the ${functionCall.args.screenName} screen.`;
+              } else {
+                functionResponse = res;
+              }
             } else if (functionCall.name === "getWeather") {
               functionResponse = await aiCtrl.getWeather(
                 functionCall.args.city,
@@ -548,11 +552,17 @@ const aiCtrl = {
                 functionCall.args.query,
               );
             } else if (functionCall.name === "scheduleReminder") {
-              functionResponse = await aiCtrl.scheduleReminder(
+              const res = await aiCtrl.scheduleReminder(
                 currentUserId,
                 functionCall.args.text,
                 functionCall.args.timeInMinutes,
               );
+              if (typeof res === "string" && res.startsWith("COMMAND:")) {
+                aiCommand = res;
+                functionResponse = `Success: Reminder scheduled for "${functionCall.args.text}" in ${functionCall.args.timeInMinutes} minutes. Confirmation has been logged.`;
+              } else {
+                functionResponse = res;
+              }
             }
 
             console.log(
@@ -591,6 +601,7 @@ const aiCtrl = {
               text: result2.response.text(),
               searchResults,
               weatherData,
+              aiCommand,
             };
           }
 
@@ -598,6 +609,7 @@ const aiCtrl = {
             text: response.text(),
             searchResults: null,
             weatherData: null,
+            aiCommand: null,
           };
         } catch (modelErr) {
           console.warn(
