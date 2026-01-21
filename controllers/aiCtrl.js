@@ -272,11 +272,18 @@ const aiCtrl = {
       const genAI = new GoogleGenerativeAI(apiKey);
 
       const modelNames = [
-        "gemini-2.0-flash-exp",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-flash-8b",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-3-flash-preview",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-preview-tts",
+        "gemini-flash-latest",
+        "gemini-flash-lite-latest",
+        "gemini-exp-1206",
         "gemini-2.0-flash-lite-preview",
-        "gemini-1.5-pro-latest",
+        "gemini-2.0-flash-001",
+        "gemma-3-27b-it", // 14,000+ RPD fallback
+        "gemma-3-12b-it",
       ];
       let lastError = null;
 
