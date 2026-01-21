@@ -238,7 +238,10 @@ const aiCtrl = {
         text,
         remindAt,
       });
-      await reminder.save();
+      const savedReminder = await reminder.save();
+      console.log(
+        `✅ [AI-DEBUG] Reminder saved to DB successfully: ${savedReminder._id}`,
+      );
       // Return a special command string for the frontend to schedule a Local Notification
       return `COMMAND:REMINDER:${timeInMinutes}:${text}`;
     } catch (err) {
@@ -354,9 +357,10 @@ const aiCtrl = {
             Your name is Capricon AI.
             The current date and time is ${clientTime ? clientTime : new Date().toLocaleString()}.
             
-            IMPORTANT: Use the date/time string above as the absolute reference for "NOW". 
-            If a user says "remind me at 10 PM", calculate the minutes between THAT specific "NOW" string and 10 PM.
-            Do not assume any other timezone or offset unless the user explicitly mentions one.
+            IMPORTANT: Use the date/time string above as the absolute LOCAL reference for "NOW". 
+            When a user asks for a reminder at a specific time (e.g., "3:45 PM"), calculate the EXACT number of minutes from that LOCAL "NOW" to the target time.
+            
+            Example: If "NOW" is 3:18 PM and user wants 3:45 PM, the difference is 27 minutes.
             
             You have access to tools for search, navigation, weather, news, image generation, and reminders.
             
@@ -378,7 +382,7 @@ const aiCtrl = {
             IMPORTANT:
             1. If you use 'navigateApp' or 'scheduleReminder', include the COMMAND string in your final response.
             2. You may see parts of the message history tagged with '[METADATA: ...]'. This is system context (like shared locations). NEVER include these metadata tags or their content in reminder titles or search queries unless the user specifically asks you to include the location.
-            3. For reminders, the title should only be the task itself (e.g., "go for lunch").`;
+            3. For reminders, the title MUST be the literal task from the user's message (e.g., if they say "remind me to take tea", the title is "take tea"). NEVER use example phrases like "go for lunch" unless the user actually said that.`;
           }
 
           const model = genAI.getGenerativeModel(modelConfigs);
