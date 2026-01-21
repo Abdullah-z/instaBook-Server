@@ -272,9 +272,11 @@ const aiCtrl = {
       const genAI = new GoogleGenerativeAI(apiKey);
 
       const modelNames = [
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-pro-latest",
         "gemini-2.0-flash-exp",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash-8b",
+        "gemini-2.0-flash-lite-preview",
+        "gemini-1.5-pro-latest",
       ];
       let lastError = null;
 
