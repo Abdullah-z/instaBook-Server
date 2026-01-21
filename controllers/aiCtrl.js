@@ -217,6 +217,21 @@ const aiCtrl = {
       console.log(
         `⏰ [AI-DEBUG] Scheduling reminder for user ${userId}: ${text} in ${timeInMinutes}m`,
       );
+
+      // Duplicate prevention: check if a similar reminder was created in the last 30 seconds
+      const existing = await Reminders.findOne({
+        user: userId,
+        text,
+        createdAt: { $gte: new Date(Date.now() - 30000) },
+      });
+
+      if (existing) {
+        console.log(
+          "⚠️ [AI-DEBUG] Duplicate reminder detected, skipping DB save but returning command.",
+        );
+        return `COMMAND:REMINDER:${timeInMinutes}:${text}`;
+      }
+
       const remindAt = new Date(Date.now() + timeInMinutes * 60000);
       const reminder = new Reminders({
         user: userId,
@@ -237,7 +252,12 @@ const aiCtrl = {
     return `COMMAND:NAVIGATE:${screenName}`;
   },
 
-  generateAIResponse: async (history, currentMessage, currentUserId) => {
+  generateAIResponse: async (
+    history,
+    currentMessage,
+    currentUserId,
+    clientTime,
+  ) => {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
@@ -331,7 +351,18 @@ const aiCtrl = {
           if (!isGemma) {
             modelConfigs.systemInstruction = `You are the Official AI Assistant for instaBook, a social media app. 
             Your name is Capricon AI.
-            The current date and time is ${new Date().toLocaleString()}.
+            The current date and time is ${
+              clientTime
+                ? new Date(clientTime).toLocaleString()
+                : new Date().toLocaleString()
+            }.
+            User's Local Time: ${clientTime || "Unknown"}
+            Server Time: ${new Date().toLocaleString()}
+            
+            Always calculate relative times (e.g., "in 10 minutes") based on the provided current date and time.
+            If a user says "remind me at 10 PM", calculate how many minutes from NOW (${
+              clientTime || new Date().toISOString()
+            }) that is.
             
             You have access to tools for search, navigation, weather, news, image generation, and reminders.
             

@@ -14,7 +14,7 @@ app.use(
   cors({
     origin: "*", // Allow all origins (or replace with your frontend URL later)
     credentials: true, // Allow cookies & Authorization headers
-  })
+  }),
 );
 
 // Socket.IO with proper CORS (THIS IS THE CRITICAL FIX)
@@ -72,7 +72,7 @@ mongoose
         role: "ai_assistant",
         avatar: "https://cdn-icons-png.flaticon.com/512/4712/4712035.png",
       },
-      { upsert: true, new: true } // Create if doesn't exist, reuse if exists
+      { upsert: true, new: true }, // Create if doesn't exist, reuse if exists
     );
 
     console.log("🤖 AI Assistant ready.");
@@ -82,6 +82,10 @@ mongoose
 // Start the auction scheduler
 const startAuctionScheduler = require("./utils/auctionScheduler");
 startAuctionScheduler();
+
+// Start the reminder scheduler
+const startReminderScheduler = require("./utils/reminderScheduler");
+startReminderScheduler();
 
 // Scheduled Task: Cleanup Sold Listings (Every Minute)
 const Listings = require("./models/listingModel");
@@ -96,7 +100,7 @@ setInterval(async () => {
 
     if (expiredListings.length > 0) {
       console.log(
-        `🧹 Found ${expiredListings.length} expired listings to cleanup.`
+        `🧹 Found ${expiredListings.length} expired listings to cleanup.`,
       );
 
       for (const listing of expiredListings) {
@@ -107,7 +111,7 @@ setInterval(async () => {
             if (media.public_id) {
               await deleteImage(
                 media.public_id,
-                media.resource_type || "image"
+                media.resource_type || "image",
               );
             } else {
               await deleteImageByUrl(media);
@@ -121,7 +125,7 @@ setInterval(async () => {
           deleteAt: null,
         });
         console.log(
-          `✅ Cleaned up images for listing: ${listing.name} (${listing._id}). Record kept in DB.`
+          `✅ Cleaned up images for listing: ${listing.name} (${listing._id}). Record kept in DB.`,
         );
       }
     }
@@ -140,7 +144,7 @@ setInterval(async () => {
 
     if (expiredStories.length > 0) {
       console.log(
-        `🧹 Found ${expiredStories.length} expired stories to cleanup.`
+        `🧹 Found ${expiredStories.length} expired stories to cleanup.`,
       );
 
       for (const story of expiredStories) {
@@ -151,7 +155,7 @@ setInterval(async () => {
             if (media.public_id) {
               await deleteImage(
                 media.public_id,
-                media.resource_type || "image"
+                media.resource_type || "image",
               );
             } else if (typeof media === "string") {
               await deleteImageByUrl(media);

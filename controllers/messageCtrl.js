@@ -122,6 +122,7 @@ const messageCtrl = {
           history.reverse(),
           text,
           req.user._id,
+          req.body.clientTime,
         );
 
         const aiMessage = new Messages({
