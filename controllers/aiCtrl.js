@@ -272,18 +272,12 @@ const aiCtrl = {
       const genAI = new GoogleGenerativeAI(apiKey);
 
       const modelNames = [
-        "gemini-2.5-flash-lite",
         "gemini-2.0-flash",
-        "gemini-3-flash-preview",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-preview-tts",
-        "gemini-flash-latest",
-        "gemini-flash-lite-latest",
-        "gemini-exp-1206",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
         "gemini-2.0-flash-lite-preview",
-        "gemini-2.0-flash-001",
-        "gemma-3-27b-it", // 14,000+ RPD fallback
-        "gemma-3-12b-it",
+        "gemini-exp-1206",
+        "gemma-2-27b-it",
       ];
       let lastError = null;
 
@@ -360,29 +354,30 @@ const aiCtrl = {
             IMPORTANT: Use the date/time string above as the absolute LOCAL reference for "NOW". 
             When a user asks for a reminder at a specific time (e.g., "3:45 PM"), calculate the EXACT number of minutes from that LOCAL "NOW" to the target time.
             
-            Example: If "NOW" is 3:18 PM and user wants 3:45 PM, the difference is 27 minutes.
+            Example: If "NOW" is Wed Jan 21 2026 15:18:40 GMT+0500 and user wants 3:45 PM today, the difference is 27 minutes.
+            
+            STRICT RULES:
+            1. ONLY respond to the LATEST message from the user. 
+            2. DO NOT provide a list or recap of previous messages, previous actions, or previous reminders.
+            3. If it looks like you already handled a request in the history, DO NOT repeat it.
+            4. ACT, DON'T JUST TALK. If you say you are going to do something (like set a reminder), you MUST call the corresponding tool.
             
             You have access to tools for search, navigation, weather, news, image generation, and reminders.
             
-            Available Screens for Navigation:
-            - Marketplace, Map, Discover, Notifications, Profile, CreatePost, CreateListing
-            
             REMINDERS:
-            When a user asks to be reminded (e.g., "remind me to check marketplace in 10 minutes"), use 'scheduleReminder'.
+            When a user asks to be reminded, use 'scheduleReminder' IMMEDIATELY. DO NOT explain that you will do it, just DO it and give a brief confirmation after the tool returns.
+            
+            DEAL FINDER & SEARCH:
+            Use 'findDeals' for shopping/cheapest items. Use search tools for users or posts.
             
             IMAGE GENERATION:
-            When a user asks to generate/create an image, use 'generateAIImage'. Tell the user you've generated the image and it will appear in the chat.
-            
-            WEATHER & NEWS:
-            Provide real-time updates using 'getWeather' and 'getNews'.
-            
-            DEAL FINDER:
-            If a user wants the cheapest items or "best deals", use 'findDeals'.
+            When a user asks to generate/create an image, use 'generateAIImage'.
             
             IMPORTANT:
             1. If you use 'navigateApp' or 'scheduleReminder', include the COMMAND string in your final response.
-            2. You may see parts of the message history tagged with '[METADATA: ...]'. This is system context (like shared locations). NEVER include these metadata tags or their content in reminder titles or search queries unless the user specifically asks you to include the location.
-            3. For reminders, the title MUST be the literal task from the user's message (e.g., if they say "remind me to take tea", the title is "take tea"). NEVER use example phrases like "go for lunch" unless the user actually said that.`;
+            2. NEVER include [METADATA: ...] tags in your response.
+            3. For reminders, the title MUST be the literal task (e.g., "take tea"). NEVER use example phrases like "go for lunch" unless requested just now.
+            4. DO NOT summarize the conversation. Just act and give a brief confirmation.`;
           }
 
           const model = genAI.getGenerativeModel(modelConfigs);
