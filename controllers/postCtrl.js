@@ -267,16 +267,20 @@ const postCtrl = {
 
   getUserPosts: async (req, res) => {
     try {
+      const { media_type } = req.query;
+      let filter = { user: req.params.id, isStory: { $ne: true } };
+
+      if (media_type === "text") {
+        filter.images = { $size: 0 };
+      }
+
       const features = new APIfeatures(
-        Posts.find({ user: req.params.id, isStory: { $ne: true } }),
+        Posts.find(filter),
         req.query,
       ).paginating();
       const posts = await features.query.sort("-createdAt");
 
-      const totalPosts = await Posts.countDocuments({
-        user: req.params.id,
-        isStory: { $ne: true },
-      });
+      const totalPosts = await Posts.countDocuments(filter);
 
       res.json({
         posts,
