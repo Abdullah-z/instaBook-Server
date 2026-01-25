@@ -27,6 +27,8 @@ const postCtrl = {
         postType = "feed",
         address,
         location,
+        background,
+        textStyle,
       } = req.body;
 
       if (images.length === 0 && (!content || content.length === 0)) {
@@ -41,6 +43,8 @@ const postCtrl = {
           isStory: false,
           address,
           location,
+          background,
+          textStyle,
         });
         await newPost.save();
         return newPost;
@@ -55,6 +59,8 @@ const postCtrl = {
           expiresAt: Date.now() + 24 * 60 * 60 * 1000,
           address,
           location,
+          background,
+          textStyle,
         });
         await newStory.save();
         return newStory;
@@ -90,7 +96,7 @@ const postCtrl = {
           user: [...req.user.following, req.user._id],
           isStory: { $ne: true }, // Exclude stories
         }),
-        req.query
+        req.query,
       ).paginating();
       const posts = await features.query
         .sort("-createdAt")
@@ -145,7 +151,7 @@ const postCtrl = {
       // Put 'me' first if exists
       const myId = req.user._id.toString();
       const myStoriesIndex = result.findIndex(
-        (item) => item.user._id.toString() === myId
+        (item) => item.user._id.toString() === myId,
       );
 
       if (myStoriesIndex > -1) {
@@ -165,7 +171,8 @@ const postCtrl = {
 
   updatePost: async (req, res) => {
     try {
-      const { content, images, address, location } = req.body;
+      const { content, images, address, location, background, textStyle } =
+        req.body;
 
       const post = await Posts.findOneAndUpdate(
         { _id: req.params.id },
@@ -174,7 +181,9 @@ const postCtrl = {
           images,
           address,
           location,
-        }
+          background,
+          textStyle,
+        },
       )
         .populate("user likes", "avatar username fullname")
         .populate({
@@ -193,6 +202,8 @@ const postCtrl = {
           images,
           address,
           location,
+          background,
+          textStyle,
         },
       });
     } catch (err) {
@@ -219,7 +230,7 @@ const postCtrl = {
         },
         {
           new: true,
-        }
+        },
       );
 
       if (!like) {
@@ -241,7 +252,7 @@ const postCtrl = {
         },
         {
           new: true,
-        }
+        },
       );
 
       if (!like) {
@@ -258,7 +269,7 @@ const postCtrl = {
     try {
       const features = new APIfeatures(
         Posts.find({ user: req.params.id, isStory: { $ne: true } }),
-        req.query
+        req.query,
       ).paginating();
       const posts = await features.query.sort("-createdAt");
 
@@ -438,7 +449,7 @@ const postCtrl = {
         },
         {
           new: true,
-        }
+        },
       );
 
       if (!report) {
@@ -470,7 +481,7 @@ const postCtrl = {
         },
         {
           new: true,
-        }
+        },
       );
 
       if (!save) {
@@ -492,7 +503,7 @@ const postCtrl = {
         },
         {
           new: true,
-        }
+        },
       );
 
       if (!save) {
@@ -509,7 +520,7 @@ const postCtrl = {
     try {
       const features = new APIfeatures(
         Posts.find({ _id: { $in: req.user.saved } }),
-        req.query
+        req.query,
       ).paginating();
 
       const savePosts = await features.query.sort("-createdAt");

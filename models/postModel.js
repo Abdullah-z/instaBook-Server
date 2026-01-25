@@ -6,7 +6,7 @@ const postSchema = new Schema(
     content: String,
     images: {
       type: Array,
-      required: true,
+      default: [],
     },
     likes: [
       {
@@ -43,10 +43,16 @@ const postSchema = new Schema(
       type: { type: String, default: "Point" },
       coordinates: { type: [Number], index: "2dsphere" },
     },
+    background: String,
+    textStyle: {
+      fontSize: { type: Number, default: 20 },
+      color: { type: String, default: "#000000" },
+      fontWeight: { type: String, default: "normal" },
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 postSchema.index({ user: 1, createdAt: -1 });

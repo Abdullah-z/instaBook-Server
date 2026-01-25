@@ -41,7 +41,7 @@ exports.shareLocation = async (req, res) => {
         type,
         expiresAt,
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true },
     );
 
     res
@@ -56,13 +56,13 @@ exports.shareLocation = async (req, res) => {
 exports.getSharedLocations = async (req, res) => {
   console.log(
     ">>> [locationRouter] GET /shared requested by user:",
-    req.user._id
+    req.user._id,
   );
   const start = Date.now();
   try {
     const { lat, lon, radius, targetUserId, timePeriod } = req.query;
     console.log(
-      `[Location Fetch] Params: lat=${lat}, lon=${lon}, radius=${radius}`
+      `[Location Fetch] Params: lat=${lat}, lon=${lon}, radius=${radius}`,
     );
     const user = await User.findById(req.user._id).select("following");
     if (!user) {
@@ -89,19 +89,19 @@ exports.getSharedLocations = async (req, res) => {
             },
           },
         },
-      ]
+      ],
     )
       .then((res) => {
         if (res.modifiedCount > 0)
           console.log(
-            `[Location Migration] Updated ${res.modifiedCount} old records.`
+            `[Location Migration] Updated ${res.modifiedCount} old records.`,
           );
       })
       .catch((err) => console.error("[Location Migration] Error:", err));
 
     // 0.1 Cleanup Expired Locations (Background)
     Location.deleteMany({ expiresAt: { $lte: new Date() } }).catch((err) =>
-      console.error("[Location Cleanup] Error:", err)
+      console.error("[Location Cleanup] Error:", err),
     );
 
     // 1. Fetch active sharing sessions
@@ -143,7 +143,7 @@ exports.getSharedLocations = async (req, res) => {
       console.log(
         `[Location Fetch] Active sharing found: ${locations.length} (Time: ${
           Date.now() - start
-        }ms)`
+        }ms)`,
       );
     } catch (err) {
       console.error("[Location Fetch] Error finding locations:", err);
@@ -155,7 +155,7 @@ exports.getSharedLocations = async (req, res) => {
           .populate("user", "username fullname avatar")
           .limit(100);
         console.log(
-          `[Location Fetch] Fallback successful (Time: ${Date.now() - start}ms)`
+          `[Location Fetch] Fallback successful (Time: ${Date.now() - start}ms)`,
         );
       } else {
         throw err;
@@ -263,7 +263,7 @@ exports.getSharedLocations = async (req, res) => {
       console.log(
         `[Location Fetch] Latest posts found: ${latestPostsAgg.length} (Time: ${
           Date.now() - start
-        }ms)`
+        }ms)`,
       );
     } catch (err) {
       console.error("[Location Fetch] Aggregation error:", err);
@@ -275,7 +275,7 @@ exports.getSharedLocations = async (req, res) => {
         (item) =>
           item.latestPost &&
           item.latestPost.location &&
-          item.latestPost.location.coordinates
+          item.latestPost.location.coordinates,
       )
       .map((item) => {
         const p = item.latestPost;
@@ -298,6 +298,7 @@ exports.getSharedLocations = async (req, res) => {
             id: p._id,
             content: p.content,
             image: p.images[0]?.url,
+            resource_type: p.images[0]?.resource_type,
             likes: p.likes ? p.likes.length : 0,
             comments: p.comments ? p.comments.length : 0,
           },
@@ -314,7 +315,7 @@ exports.getSharedLocations = async (req, res) => {
     console.log(
       `[Location Fetch] Final Markers - Shared: ${locations.length}, Posts: ${
         postMarkers.length
-      }, Total: ${combined.length} (Total Time: ${Date.now() - start}ms)`
+      }, Total: ${combined.length} (Total Time: ${Date.now() - start}ms)`,
     );
     res.status(200).json(combined);
   } catch (err) {
