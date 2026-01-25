@@ -270,8 +270,16 @@ const postCtrl = {
       const { media_type } = req.query;
       let filter = { user: req.params.id, isStory: { $ne: true } };
 
+      const youtubeRegex = /youtube\.com|youtu\.be/;
+
       if (media_type === "text") {
         filter.images = { $size: 0 };
+        filter.content = { $not: { $regex: youtubeRegex, $options: "i" } };
+      } else if (media_type === "media") {
+        filter.$or = [
+          { images: { $exists: true, $not: { $size: 0 } } },
+          { content: { $regex: youtubeRegex, $options: "i" } },
+        ];
       }
 
       const features = new APIfeatures(
