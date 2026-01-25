@@ -144,9 +144,7 @@ setInterval(async () => {
     });
 
     if (expiredStories.length > 0) {
-      console.log(
-        `🧹 Found ${expiredStories.length} expired stories to cleanup.`,
-      );
+      console.log(`Found ${expiredStories.length} expired stories to cleanup.`);
 
       for (const story of expiredStories) {
         console.log(`Processing story: ${story._id}`);
@@ -168,11 +166,47 @@ setInterval(async () => {
 
         // Delete story from DB completely since it's a social post, not a marketplace listing
         await Posts.findByIdAndDelete(story._id);
-        console.log(`✅ Deleted expired story and its media: ${story._id}`);
+        console.log(`Deleted expired story and its media: ${story._id}`);
       }
     }
   } catch (err) {
     console.error("Error in story scheduled cleanup:", err);
+  }
+}, 60 * 1000); // Run every minute
+
+// Scheduled Task: Cleanup Expired Events (Every Minute)
+const Events = require("./models/eventModel");
+setInterval(async () => {
+  try {
+    const expiredEvents = await Events.find({
+      deleteAt: { $lte: new Date() },
+      image: { $ne: "" }, // Only if image exists
+    });
+
+    if (expiredEvents.length > 0) {
+      console.log(
+        `🧹 Found ${expiredEvents.length} expired events to cleanup.`,
+      );
+
+      for (const event of expiredEvents) {
+        console.log(`Processing event: ${event.title} (${event._id})`);
+        // Delete image from Cloudinary
+        if (event.image) {
+          await deleteImageByUrl(event.image);
+        }
+
+        // Clear image and reset deleteAt
+        await Events.findByIdAndUpdate(event._id, {
+          image: "",
+          deleteAt: null,
+        });
+        console.log(
+          `✅ Cleaned up image for event: ${event.title} (${event._id}).`,
+        );
+      }
+    }
+  } catch (err) {
+    console.error("Error in event scheduled cleanup:", err);
   }
 }, 60 * 1000); // Run every minute
 

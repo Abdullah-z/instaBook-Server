@@ -1,4 +1,5 @@
 const Events = require("../models/eventModel");
+const { deleteImageByUrl } = require("../utils/cloudinary");
 
 const eventCtrl = {
   createEvent: async (req, res) => {
@@ -12,6 +13,9 @@ const eventCtrl = {
           .json({ msg: "Please provide all required fields." });
       }
 
+      // Set deleteAt to 24 hours after the event date
+      const deleteAt = new Date(new Date(date).getTime() + 24 * 60 * 60 * 1000);
+
       const newEvent = new Events({
         user: req.user._id,
         title,
@@ -21,6 +25,7 @@ const eventCtrl = {
         image,
         address,
         location,
+        deleteAt,
       });
 
       await newEvent.save();
@@ -39,7 +44,7 @@ const eventCtrl = {
 
   getEvents: async (req, res) => {
     try {
-      // Get upcoming events
+      // Get upcoming events (events where images are not yet cleaned up - or just all upcoming)
       const events = await Events.find({
         date: { $gte: new Date().setHours(0, 0, 0, 0) },
       })
@@ -72,16 +77,32 @@ const eventCtrl = {
       const { title, description, date, time, image, address, location } =
         req.body;
 
-      const event = await Events.findOneAndUpdate(
-        { _id: req.params.id, user: req.user._id },
-        { title, description, date, time, image, address, location },
-        { new: true },
-      ).populate("user", "avatar username fullname");
+      // Find existing event first
+      const oldEvent = await Events.findOne({
+        _id: req.params.id,
+        user: req.user._id,
+      });
 
-      if (!event)
+      if (!oldEvent)
         return res
           .status(400)
           .json({ msg: "Event not found or unauthorized." });
+
+      // Calculate new deleteAt if date changed
+      const deleteAt = date
+        ? new Date(new Date(date).getTime() + 24 * 60 * 60 * 1000)
+        : oldEvent.deleteAt;
+
+      // Delete old image if it was replaced
+      if (image && oldEvent.image && image !== oldEvent.image) {
+        await deleteImageByUrl(oldEvent.image);
+      }
+
+      const event = await Events.findOneAndUpdate(
+        { _id: req.params.id, user: req.user._id },
+        { title, description, date, time, image, address, location, deleteAt },
+        { new: true },
+      ).populate("user", "avatar username fullname");
 
       res.json({ msg: "Update Success!", event });
     } catch (err) {
@@ -99,6 +120,11 @@ const eventCtrl = {
         return res
           .status(400)
           .json({ msg: "Event not found or unauthorized." });
+
+      // Delete image from Cloudinary if exists
+      if (event.image) {
+        await deleteImageByUrl(event.image);
+      }
 
       res.json({ msg: "Deleted Event!" });
     } catch (err) {

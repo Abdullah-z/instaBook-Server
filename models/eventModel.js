@@ -15,6 +15,7 @@ const eventSchema = new mongoose.Schema(
     },
     interested: [{ type: mongoose.Types.ObjectId, ref: "user" }],
     going: [{ type: mongoose.Types.ObjectId, ref: "user" }],
+    deleteAt: { type: Date, default: null },
   },
   {
     timestamps: true,
