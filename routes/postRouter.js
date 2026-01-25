@@ -17,6 +17,7 @@ router
 
 router.patch("/post/:id/like", auth, postCtrl.likePost);
 router.patch("/post/:id/unlike", auth, postCtrl.unLikePost);
+router.patch("/post/:id/vote", auth, postCtrl.votePoll);
 
 router.patch("/post/:id/report", auth, postCtrl.reportPost);
 

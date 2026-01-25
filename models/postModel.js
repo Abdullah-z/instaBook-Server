@@ -49,6 +49,13 @@ const postSchema = new Schema(
       color: { type: String, default: "#000000" },
       fontWeight: { type: String, default: "normal" },
     },
+    poll_question: String,
+    poll_options: [
+      {
+        text: String,
+        votes: [{ type: mongoose.Types.ObjectId, ref: "user" }],
+      },
+    ],
   },
   {
     timestamps: true,

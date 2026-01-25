@@ -29,10 +29,18 @@ const postCtrl = {
         location,
         background,
         textStyle,
+        poll_question,
+        poll_options,
       } = req.body;
 
-      if (images.length === 0 && (!content || content.length === 0)) {
-        return res.status(400).json({ msg: "Please add photo(s) or content" });
+      if (
+        images.length === 0 &&
+        (!content || content.length === 0) &&
+        (!poll_question || poll_question.length === 0)
+      ) {
+        return res
+          .status(400)
+          .json({ msg: "Please add photo(s), content, or poll" });
       }
 
       const createFeedPost = async () => {
@@ -45,6 +53,8 @@ const postCtrl = {
           location,
           background,
           textStyle,
+          poll_question,
+          poll_options,
         });
         await newPost.save();
         return newPost;
@@ -61,6 +71,8 @@ const postCtrl = {
           location,
           background,
           textStyle,
+          poll_question,
+          poll_options,
         });
         await newStory.save();
         return newStory;
@@ -542,6 +554,40 @@ const postCtrl = {
         result: savePosts.length,
         savePosts,
       });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+
+  votePoll: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { optionIndex } = req.body;
+      const userId = req.user._id;
+
+      const post = await Posts.findById(id);
+      if (!post) return res.status(400).json({ msg: "Post does not exist." });
+
+      // Remove any existing vote by this user on this poll
+      post.poll_options.forEach((opt) => {
+        const index = opt.votes.indexOf(userId);
+        if (index > -1) {
+          opt.votes.splice(index, 1);
+        }
+      });
+
+      // Add new vote if valid index
+      if (optionIndex >= 0 && optionIndex < post.poll_options.length) {
+        post.poll_options[optionIndex].votes.push(userId);
+      } else if (optionIndex === -1) {
+        // Just unvoting, do nothing else
+      } else {
+        return res.status(400).json({ msg: "Invalid option index." });
+      }
+
+      await post.save();
+
+      res.json({ msg: "Vote updated.", newPost: post });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
     }
