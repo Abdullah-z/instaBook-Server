@@ -56,6 +56,7 @@ const postSchema = new Schema(
         votes: [{ type: mongoose.Types.ObjectId, ref: "user" }],
       },
     ],
+    hashtags: [{ type: String, lowercase: true, index: true }],
   },
   {
     timestamps: true,

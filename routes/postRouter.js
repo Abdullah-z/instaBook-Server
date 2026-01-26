@@ -31,4 +31,6 @@ router.get("/getSavePosts", auth, postCtrl.getSavePost);
 
 router.get("/reels", auth, postCtrl.getReels);
 
+router.get("/search_post", auth, postCtrl.searchPost);
+
 module.exports = router;

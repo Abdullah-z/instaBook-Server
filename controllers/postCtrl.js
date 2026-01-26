@@ -44,6 +44,9 @@ const postCtrl = {
       }
 
       const createFeedPost = async () => {
+        const hashtags = content
+          ? content.match(/#(\w+)/g)?.map((tag) => tag.slice(1).toLowerCase())
+          : [];
         const newPost = new Posts({
           content,
           images,
@@ -55,12 +58,16 @@ const postCtrl = {
           textStyle,
           poll_question,
           poll_options,
+          hashtags,
         });
         await newPost.save();
         return newPost;
       };
 
       const createStoryPost = async () => {
+        const hashtags = content
+          ? content.match(/#(\w+)/g)?.map((tag) => tag.slice(1).toLowerCase())
+          : [];
         const newStory = new Posts({
           content,
           images,
@@ -73,6 +80,7 @@ const postCtrl = {
           textStyle,
           poll_question,
           poll_options,
+          hashtags,
         });
         await newStory.save();
         return newStory;
@@ -186,6 +194,9 @@ const postCtrl = {
       const { content, images, address, location, background, textStyle } =
         req.body;
 
+      const hashtags = content
+        ? content.match(/#(\w+)/g)?.map((tag) => tag.slice(1).toLowerCase())
+        : [];
       const post = await Posts.findOneAndUpdate(
         { _id: req.params.id },
         {
@@ -195,6 +206,7 @@ const postCtrl = {
           location,
           background,
           textStyle,
+          hashtags,
         },
       )
         .populate("user likes", "avatar username fullname")
@@ -588,6 +600,48 @@ const postCtrl = {
       await post.save();
 
       res.json({ msg: "Vote updated.", newPost: post });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+  searchPost: async (req, res) => {
+    try {
+      const { content } = req.query;
+      if (!content)
+        return res.status(400).json({ msg: "Please add search content." });
+
+      const hashtag = content.startsWith("#")
+        ? content.slice(1).toLowerCase()
+        : null;
+
+      let filter = { isStory: { $ne: true } };
+      if (hashtag) {
+        filter.hashtags = hashtag;
+      } else {
+        filter.content = { $regex: content, $options: "i" };
+      }
+
+      const features = new APIfeatures(
+        Posts.find(filter),
+        req.query,
+      ).paginating();
+
+      const posts = await features.query
+        .sort("-createdAt")
+        .populate("user likes", "avatar username fullname followers")
+        .populate({
+          path: "comments",
+          populate: {
+            path: "user likes ",
+            select: "-password",
+          },
+        });
+
+      res.json({
+        msg: "Success",
+        result: posts.length,
+        posts,
+      });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
     }
