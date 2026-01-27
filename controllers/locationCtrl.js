@@ -61,10 +61,26 @@ exports.getSharedLocations = async (req, res) => {
   );
   const start = Date.now();
   try {
-    const { lat, lon, radius, targetUserId, timePeriod } = req.query;
+    const { lat, lon, radius, targetUserId, timePeriod, typeFilter } =
+      req.query;
     console.log(
-      `[Location Fetch] Params: lat=${lat}, lon=${lon}, radius=${radius}`,
+      `[Location Fetch] Params: lat=${lat}, lon=${lon}, radius=${radius}, typeFilter=${typeFilter}`,
     );
+
+    // Parse typeFilter - comma-separated list of types to include
+    // e.g., "post" or "live,static" or "post,shoutout"
+    // If not provided, include all types (default behavior)
+    const requestedTypes = typeFilter
+      ? typeFilter.split(",").map((t) => t.trim().toLowerCase())
+      : ["live", "static", "post", "shoutout"];
+
+    const includeLiveStatic =
+      requestedTypes.includes("live") || requestedTypes.includes("static");
+    const includeShoutouts = requestedTypes.includes("shoutout");
+    const includePosts = requestedTypes.includes("post");
+
+    console.log(`[Location Fetch] Requested types:`, requestedTypes);
+
     const user = await User.findById(req.user._id).select("following");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -105,83 +121,28 @@ exports.getSharedLocations = async (req, res) => {
       console.error("[Location Cleanup] Error:", err),
     );
 
-    // 1. Fetch active sharing sessions
-    let query = {
-      expiresAt: { $gt: new Date() }, // Only active sessions
-    };
-
-    if (targetUserId) {
-      query.user = targetUserId;
-    } else {
-      query.$or = [
-        { visibility: "public" },
-        { visibility: "friends", user: { $in: followingIds } },
-        { user: req.user._id }, // Always include self
-      ];
-    }
-
-    const r = parseFloat(radius);
-    const useGeo = lat && lon && r && r < 10000;
-
-    if (useGeo) {
-      query.location = {
-        $nearSphere: {
-          $geometry: {
-            type: "Point",
-            coordinates: [parseFloat(lon), parseFloat(lat)],
-          },
-          $maxDistance: r * 1000,
-        },
-      };
-    }
-
+    // 1. Fetch active sharing sessions (live/static) - only if requested
     let locations = [];
-    try {
-      console.log(`[Location Fetch] Query:`, JSON.stringify(query));
-      locations = await Location.find(query)
-        .populate("user", "username fullname avatar")
-        .limit(100);
-      console.log(
-        `[Location Fetch] Active sharing found: ${locations.length} (Time: ${
-          Date.now() - start
-        }ms)`,
-      );
-    } catch (err) {
-      console.error("[Location Fetch] Error finding locations:", err);
-      // Fallback: If geospatial query fails (index still building?), try without it
-      if (useGeo) {
-        console.log("[Location Fetch] Retrying without geo query...");
-        delete query.location;
-        locations = await Location.find(query)
-          .populate("user", "username fullname avatar")
-          .limit(100);
-        console.log(
-          `[Location Fetch] Fallback successful (Time: ${Date.now() - start}ms)`,
-        );
-      } else {
-        throw err;
-      }
-    }
-
-    // 1.1 Fetch shoutouts (Graffiti)
-    let shoutouts = [];
-    try {
-      const shoutoutQuery = {
-        expiresAt: { $gt: new Date() },
+    if (includeLiveStatic) {
+      let query = {
+        expiresAt: { $gt: new Date() }, // Only active sessions
       };
 
-      if (!targetUserId) {
-        shoutoutQuery.$or = [
+      if (targetUserId) {
+        query.user = targetUserId;
+      } else {
+        query.$or = [
           { visibility: "public" },
           { visibility: "friends", user: { $in: followingIds } },
-          { user: req.user._id },
+          { user: req.user._id }, // Always include self
         ];
-      } else {
-        shoutoutQuery.user = targetUserId;
       }
 
+      const r = parseFloat(radius);
+      const useGeo = lat && lon && r && r < 10000;
+
       if (useGeo) {
-        shoutoutQuery.location = {
+        query.location = {
           $nearSphere: {
             $geometry: {
               type: "Point",
@@ -192,156 +153,234 @@ exports.getSharedLocations = async (req, res) => {
         };
       }
 
-      shoutouts = await Shoutout.find(shoutoutQuery)
-        .populate("user", "username fullname avatar")
-        .limit(50);
-      console.log(`[Location Fetch] Shoutouts found: ${shoutouts.length}`);
-    } catch (err) {
-      console.error("[Location Fetch] Shoutout error:", err);
-    }
-
-    // 2. Fetch post markers
-    const Posts = require("../models/postModel");
-    let pipeline = [];
-
-    // 1. Build postMatch
-    const postMatch = {
-      location: { $exists: true },
-      isStory: { $ne: true },
-    };
-
-    // Filter by user(s)
-    if (targetUserId) {
-      postMatch.user = new mongoose.Types.ObjectId(targetUserId);
-    } else if (r < 10000) {
-      postMatch.user = { $in: allRelevantIds };
-    }
-
-    // Filter by timePeriod
-    if (timePeriod && timePeriod !== "all") {
-      const now = new Date();
-      let startTime = new Date();
-      if (timePeriod === "day") startTime.setDate(now.getDate() - 1);
-      else if (timePeriod === "month") startTime.setMonth(now.getMonth() - 1);
-      else if (timePeriod === "year")
-        startTime.setFullYear(now.getFullYear() - 1);
-      postMatch.createdAt = { $gte: startTime };
-    }
-
-    pipeline.push({ $match: postMatch });
-    pipeline.push({ $sort: { createdAt: -1 } });
-
-    // If NO targetUserId, show only 1 latest post per user
-    if (!targetUserId) {
-      pipeline.push({
-        $group: {
-          _id: "$user",
-          latestPost: { $first: "$$ROOT" },
-        },
-      });
+      try {
+        console.log(`[Location Fetch] Query:`, JSON.stringify(query));
+        locations = await Location.find(query)
+          .populate("user", "username fullname avatar")
+          .limit(100);
+        console.log(
+          `[Location Fetch] Active sharing found: ${locations.length} (Time: ${
+            Date.now() - start
+          }ms)`,
+        );
+      } catch (err) {
+        console.error("[Location Fetch] Error finding locations:", err);
+        // Fallback: If geospatial query fails (index still building?), try without it
+        if (useGeo) {
+          console.log("[Location Fetch] Retrying without geo query...");
+          delete query.location;
+          locations = await Location.find(query)
+            .populate("user", "username fullname avatar")
+            .limit(100);
+          console.log(
+            `[Location Fetch] Fallback successful (Time: ${Date.now() - start}ms)`,
+          );
+        } else {
+          throw err;
+        }
+      }
     } else {
-      // If targetUserId, we want ALL posts as separate markers
-      // Wrap them in latestPost structure for compatibility with existing project mapping
-      pipeline.push({
-        $project: {
-          _id: "$user",
-          latestPost: "$$ROOT",
-        },
-      });
+      console.log(
+        `[Location Fetch] Skipping live/static locations (not requested)`,
+      );
     }
 
-    // 2. If radius specified (and not "All"), filter by distance
-    if (useGeo && !targetUserId) {
-      const radiusInRadians = r / 6378.1;
-      pipeline.push({
-        $match: {
-          "latestPost.location": {
-            $geoWithin: {
-              $centerSphere: [
-                [parseFloat(lon), parseFloat(lat)],
-                radiusInRadians,
-              ],
+    // 1.1 Fetch shoutouts (Graffiti) - only if requested
+    let shoutouts = [];
+    if (includeShoutouts) {
+      try {
+        const shoutoutQuery = {
+          expiresAt: { $gt: new Date() },
+        };
+
+        if (!targetUserId) {
+          shoutoutQuery.$or = [
+            { visibility: "public" },
+            { visibility: "friends", user: { $in: followingIds } },
+            { user: req.user._id },
+          ];
+        } else {
+          shoutoutQuery.user = targetUserId;
+        }
+
+        const r = parseFloat(radius);
+        const useGeo = lat && lon && r && r < 10000;
+
+        if (useGeo) {
+          shoutoutQuery.location = {
+            $nearSphere: {
+              $geometry: {
+                type: "Point",
+                coordinates: [parseFloat(lon), parseFloat(lat)],
+              },
+              $maxDistance: r * 1000,
+            },
+          };
+        }
+
+        shoutouts = await Shoutout.find(shoutoutQuery)
+          .populate("user", "username fullname avatar")
+          .limit(50);
+        console.log(`[Location Fetch] Shoutouts found: ${shoutouts.length}`);
+      } catch (err) {
+        console.error("[Location Fetch] Shoutout error:", err);
+      }
+    } else {
+      console.log(`[Location Fetch] Skipping shoutouts (not requested)`);
+    }
+
+    // 2. Fetch post markers - only if requested
+    let postMarkers = [];
+    if (includePosts) {
+      const Posts = require("../models/postModel");
+      let pipeline = [];
+
+      // 1. Build postMatch
+      const postMatch = {
+        location: { $exists: true },
+        isStory: { $ne: true },
+      };
+
+      // Filter by user(s)
+      if (targetUserId) {
+        postMatch.user = new mongoose.Types.ObjectId(targetUserId);
+      } else {
+        const r = parseFloat(radius);
+        if (r < 10000) {
+          postMatch.user = { $in: allRelevantIds };
+        }
+      }
+
+      // Filter by timePeriod
+      if (timePeriod && timePeriod !== "all") {
+        const now = new Date();
+        let startTime = new Date();
+        if (timePeriod === "day") startTime.setDate(now.getDate() - 1);
+        else if (timePeriod === "month") startTime.setMonth(now.getMonth() - 1);
+        else if (timePeriod === "year")
+          startTime.setFullYear(now.getFullYear() - 1);
+        postMatch.createdAt = { $gte: startTime };
+      }
+
+      pipeline.push({ $match: postMatch });
+      pipeline.push({ $sort: { createdAt: -1 } });
+
+      // If NO targetUserId, show only 1 latest post per user
+      if (!targetUserId) {
+        pipeline.push({
+          $group: {
+            _id: "$user",
+            latestPost: { $first: "$$ROOT" },
+          },
+        });
+      } else {
+        // If targetUserId, we want ALL posts as separate markers
+        // Wrap them in latestPost structure for compatibility with existing project mapping
+        pipeline.push({
+          $project: {
+            _id: "$user",
+            latestPost: "$$ROOT",
+          },
+        });
+      }
+
+      // 2. If radius specified (and not "All"), filter by distance
+      const r = parseFloat(radius);
+      const useGeo = lat && lon && r && r < 10000;
+      if (useGeo && !targetUserId) {
+        const radiusInRadians = r / 6378.1;
+        pipeline.push({
+          $match: {
+            "latestPost.location": {
+              $geoWithin: {
+                $centerSphere: [
+                  [parseFloat(lon), parseFloat(lat)],
+                  radiusInRadians,
+                ],
+              },
             },
           },
+        });
+      }
+
+      pipeline.push({ $limit: 100 });
+      pipeline.push({
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "userDetails",
         },
       });
-    }
-
-    pipeline.push({ $limit: 100 });
-    pipeline.push({
-      $lookup: {
-        from: "users",
-        localField: "_id",
-        foreignField: "_id",
-        as: "userDetails",
-      },
-    });
-    pipeline.push({ $unwind: "$userDetails" });
-    pipeline.push({
-      $project: {
-        "latestPost.location": 1,
-        "latestPost._id": 1,
-        "latestPost.address": 1,
-        "latestPost.createdAt": 1,
-        "latestPost.content": 1,
-        "latestPost.images": 1,
-        "latestPost.likes": 1,
-        "latestPost.comments": 1,
-        "userDetails.username": 1,
-        "userDetails.fullname": 1,
-        "userDetails.avatar": 1,
-        "userDetails._id": 1,
-      },
-    });
-
-    console.log(`[Location Fetch] Post Pipeline:`, JSON.stringify(pipeline));
-    let latestPostsAgg = [];
-    try {
-      latestPostsAgg = await Posts.aggregate(pipeline);
-      console.log(
-        `[Location Fetch] Latest posts found: ${latestPostsAgg.length} (Time: ${
-          Date.now() - start
-        }ms)`,
-      );
-    } catch (err) {
-      console.error("[Location Fetch] Aggregation error:", err);
-      // Fallback for aggregation similarly if needed, but usually index is same
-    }
-
-    const postMarkers = latestPostsAgg
-      .filter(
-        (item) =>
-          item.latestPost &&
-          item.latestPost.location &&
-          item.latestPost.location.coordinates,
-      )
-      .map((item) => {
-        const p = item.latestPost;
-        const u = item.userDetails;
-        return {
-          _id: `post-${p._id}`,
-          user: {
-            _id: u._id,
-            username: u.username,
-            fullname: u.fullname,
-            avatar: u.avatar,
-          },
-          latitude: p.location.coordinates[1],
-          longitude: p.location.coordinates[0],
-          visibility: "friends",
-          type: "post",
-          address: p.address,
-          lastUpdate: p.createdAt,
-          postData: {
-            id: p._id,
-            content: p.content,
-            image: p.images[0]?.url,
-            resource_type: p.images[0]?.resource_type,
-            likes: p.likes ? p.likes.length : 0,
-            comments: p.comments ? p.comments.length : 0,
-          },
-        };
+      pipeline.push({ $unwind: "$userDetails" });
+      pipeline.push({
+        $project: {
+          "latestPost.location": 1,
+          "latestPost._id": 1,
+          "latestPost.address": 1,
+          "latestPost.createdAt": 1,
+          "latestPost.content": 1,
+          "latestPost.images": 1,
+          "latestPost.likes": 1,
+          "latestPost.comments": 1,
+          "userDetails.username": 1,
+          "userDetails.fullname": 1,
+          "userDetails.avatar": 1,
+          "userDetails._id": 1,
+        },
       });
+
+      console.log(`[Location Fetch] Post Pipeline:`, JSON.stringify(pipeline));
+      let latestPostsAgg = [];
+      try {
+        latestPostsAgg = await Posts.aggregate(pipeline);
+        console.log(
+          `[Location Fetch] Latest posts found: ${latestPostsAgg.length} (Time: ${
+            Date.now() - start
+          }ms)`,
+        );
+      } catch (err) {
+        console.error("[Location Fetch] Aggregation error:", err);
+        // Fallback for aggregation similarly if needed, but usually index is same
+      }
+
+      postMarkers = latestPostsAgg
+        .filter(
+          (item) =>
+            item.latestPost &&
+            item.latestPost.location &&
+            item.latestPost.location.coordinates,
+        )
+        .map((item) => {
+          const p = item.latestPost;
+          const u = item.userDetails;
+          return {
+            _id: `post-${p._id}`,
+            user: {
+              _id: u._id,
+              username: u.username,
+              fullname: u.fullname,
+              avatar: u.avatar,
+            },
+            latitude: p.location.coordinates[1],
+            longitude: p.location.coordinates[0],
+            visibility: "friends",
+            type: "post",
+            address: p.address,
+            lastUpdate: p.createdAt,
+            postData: {
+              id: p._id,
+              content: p.content,
+              image: p.images[0]?.url,
+              resource_type: p.images[0]?.resource_type,
+              likes: p.likes ? p.likes.length : 0,
+              comments: p.comments ? p.comments.length : 0,
+            },
+          };
+        });
+    } else {
+      console.log(`[Location Fetch] Skipping posts (not requested)`);
+    }
 
     const combined = [
       ...locations.map((l) => ({
@@ -356,7 +395,7 @@ exports.getSharedLocations = async (req, res) => {
       ...postMarkers,
     ];
     console.log(
-      `[Location Fetch] Final Markers - Shared: ${locations.length}, Posts: ${
+      `[Location Fetch] Final Markers - Shared: ${locations.length}, Shoutouts: ${shoutouts.length}, Posts: ${
         postMarkers.length
       }, Total: ${combined.length} (Total Time: ${Date.now() - start}ms)`,
     );
