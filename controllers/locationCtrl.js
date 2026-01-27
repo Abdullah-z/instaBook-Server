@@ -1,4 +1,5 @@
 const Location = require("../models/locationModel");
+const Shoutout = require("../models/shoutoutModel");
 const User = require("../models/userModel");
 const mongoose = require("mongoose");
 
@@ -162,6 +163,43 @@ exports.getSharedLocations = async (req, res) => {
       }
     }
 
+    // 1.1 Fetch shoutouts (Graffiti)
+    let shoutouts = [];
+    try {
+      const shoutoutQuery = {
+        expiresAt: { $gt: new Date() },
+      };
+
+      if (!targetUserId) {
+        shoutoutQuery.$or = [
+          { visibility: "public" },
+          { visibility: "friends", user: { $in: followingIds } },
+          { user: req.user._id },
+        ];
+      } else {
+        shoutoutQuery.user = targetUserId;
+      }
+
+      if (useGeo) {
+        shoutoutQuery.location = {
+          $nearSphere: {
+            $geometry: {
+              type: "Point",
+              coordinates: [parseFloat(lon), parseFloat(lat)],
+            },
+            $maxDistance: r * 1000,
+          },
+        };
+      }
+
+      shoutouts = await Shoutout.find(shoutoutQuery)
+        .populate("user", "username fullname avatar")
+        .limit(50);
+      console.log(`[Location Fetch] Shoutouts found: ${shoutouts.length}`);
+    } catch (err) {
+      console.error("[Location Fetch] Shoutout error:", err);
+    }
+
     // 2. Fetch post markers
     const Posts = require("../models/postModel");
     let pipeline = [];
@@ -310,6 +348,11 @@ exports.getSharedLocations = async (req, res) => {
         ...(l.toObject ? l.toObject() : l),
         lastUpdate: l.updatedAt,
       })),
+      ...shoutouts.map((s) => ({
+        ...(s.toObject ? s.toObject() : s),
+        type: "shoutout",
+        lastUpdate: s.createdAt,
+      })),
       ...postMarkers,
     ];
     console.log(
@@ -332,6 +375,39 @@ exports.stopSharing = async (req, res) => {
   try {
     await Location.findOneAndDelete({ user: req.user._id });
     res.status(200).json({ message: "Stopped sharing location successfully!" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Create a shoutout (Digital Graffiti)
+exports.createShoutout = async (req, res) => {
+  try {
+    const { content, latitude, longitude, visibility } = req.body;
+
+    if (!content) {
+      return res
+        .status(400)
+        .json({ message: "Content is required for a shoutout." });
+    }
+
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
+
+    const shoutout = new Shoutout({
+      user: req.user._id,
+      content,
+      latitude,
+      longitude,
+      location: { type: "Point", coordinates: [longitude, latitude] },
+      visibility: visibility || "public",
+      expiresAt,
+    });
+
+    await shoutout.save();
+
+    res
+      .status(201)
+      .json({ message: "Shoutout created successfully!", shoutout });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

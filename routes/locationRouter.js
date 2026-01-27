@@ -3,6 +3,7 @@ const {
   shareLocation,
   getSharedLocations,
   stopSharing,
+  createShoutout,
 } = require("../controllers/locationCtrl");
 const auth = require("../middleware/auth");
 
@@ -16,5 +17,8 @@ router.get("/shared", auth, getSharedLocations);
 
 // Stop sharing location
 router.delete("/stop", auth, stopSharing);
+
+// Create shoutout (Digital Graffiti)
+router.post("/shoutout", auth, createShoutout);
 
 module.exports = router;
