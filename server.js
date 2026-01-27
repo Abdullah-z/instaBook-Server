@@ -88,9 +88,9 @@ startAuctionScheduler();
 const startReminderScheduler = require("./utils/reminderScheduler");
 startReminderScheduler();
 
+/*
 // Scheduled Task: Cleanup Sold Listings (Every Minute)
 const Listings = require("./models/listingModel");
-const Posts = require("./models/postModel");
 const { deleteImageByUrl, deleteImage } = require("./utils/cloudinary");
 
 setInterval(async () => {
@@ -134,8 +134,11 @@ setInterval(async () => {
     console.error("Error in scheduled cleanup:", err);
   }
 }, 60 * 1000); // Run every minute
+*/
 
 // Scheduled Task: Cleanup Expired Stories (Every Minute)
+const Posts = require("./models/postModel");
+const { deleteImageByUrl, deleteImage } = require("./utils/cloudinary");
 setInterval(async () => {
   try {
     const expiredStories = await Posts.find({
@@ -174,6 +177,7 @@ setInterval(async () => {
   }
 }, 60 * 1000); // Run every minute
 
+/*
 // Scheduled Task: Cleanup Expired Events (Every Minute)
 const Events = require("./models/eventModel");
 setInterval(async () => {
@@ -209,6 +213,7 @@ setInterval(async () => {
     console.error("Error in event scheduled cleanup:", err);
   }
 }, 60 * 1000); // Run every minute
+*/
 
 // Start server
 const port = process.env.PORT || 8080;

@@ -189,6 +189,15 @@ const eventCtrl = {
       return res.status(500).json({ msg: err.message });
     }
   },
+
+  getUserEvents: async (req, res) => {
+    try {
+      const events = await Events.find({ user: req.params.id }).sort("-date");
+      res.json({ events, result: events.length });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
 };
 
 module.exports = eventCtrl;

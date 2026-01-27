@@ -15,5 +15,6 @@ router
 
 router.patch("/event/:id/interested", auth, eventCtrl.toggleInterested);
 router.patch("/event/:id/going", auth, eventCtrl.toggleGoing);
+router.get("/user_events/:id", auth, eventCtrl.getUserEvents);
 
 module.exports = router;
