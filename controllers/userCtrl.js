@@ -45,7 +45,6 @@ const userCtrl = {
         story,
         website,
         gender,
-        gender,
         cover,
         isPrivate,
       } = req.body;
