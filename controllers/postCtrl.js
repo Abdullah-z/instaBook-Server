@@ -470,7 +470,7 @@ const postCtrl = {
       });
 
       const posts = await Posts.aggregate([
-        { $match: { user: { $nin: newArr } } },
+        { $match: { user: { $nin: newArr }, sharedPost: { $exists: false } } },
         {
           $lookup: {
             from: "users",
