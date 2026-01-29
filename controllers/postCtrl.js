@@ -18,6 +18,51 @@ class APIfeatures {
   }
 }
 
+const Notifies = require("../models/notifyModel");
+
+const handleMentions = async (
+  content,
+  user,
+  url,
+  text = "mentioned you in a post.",
+) => {
+  if (!content) return;
+  const mentions = content.match(/@(\w+)/g);
+  if (!mentions) return;
+
+  const usernames = mentions.map((m) => m.slice(1));
+  const uniqueUsernames = [...new Set(usernames)];
+
+  const taggedUsers = await Users.find({ username: { $in: uniqueUsernames } });
+
+  for (const taggedUser of taggedUsers) {
+    if (taggedUser._id.toString() === user._id.toString()) continue;
+
+    const msg = {
+      id: user._id,
+      text,
+      recipients: [taggedUser._id],
+      url,
+      content,
+      image: "", // Optional: could add first image if available
+      user: user._id,
+    };
+
+    const notify = new Notifies(msg);
+    await notify.save();
+
+    // Push notification is handled by post-save middleware or manually here?
+    // Based on my change to notifyCtrl, I should actually call notifyCtrl.createNotify if I want push
+    // But since I'm in the backend, I can call sendPushNotification directly or use the notify model.
+    // Actually, I'll just save the notify and then call the push utility.
+
+    const { sendPushNotification } = require("../socketServer");
+    if (taggedUser.pushToken) {
+      await sendPushNotification(taggedUser._id, user.username, text, { url });
+    }
+  }
+};
+
 const postCtrl = {
   createPost: async (req, res) => {
     try {
@@ -104,6 +149,9 @@ const postCtrl = {
           user: req.user,
         },
       });
+
+      // Handle Mentions after response
+      handleMentions(content, req.user, `/post/${newPost._id}`);
     } catch (err) {
       return res.status(500).json({ msg: err.message });
     }
@@ -191,23 +239,37 @@ const postCtrl = {
 
   updatePost: async (req, res) => {
     try {
-      const { content, images, address, location, background, textStyle } =
-        req.body;
+      const {
+        content,
+        images,
+        address,
+        location,
+        background,
+        textStyle,
+        createdAt,
+      } = req.body;
 
-      const hashtags = content
-        ? content.match(/#(\w+)/g)?.map((tag) => tag.slice(1).toLowerCase())
-        : [];
+      const updateData = {
+        content,
+        images,
+        address,
+        location,
+        background,
+        textStyle,
+        hashtags: content
+          ? content.match(/#(\w+)/g)?.map((tag) => tag.slice(1).toLowerCase())
+          : [],
+        isEdited: true,
+      };
+
+      if (createdAt) {
+        updateData.createdAt = new Date(createdAt);
+      }
+
       const post = await Posts.findOneAndUpdate(
-        { _id: req.params.id },
-        {
-          content,
-          images,
-          address,
-          location,
-          background,
-          textStyle,
-          hashtags,
-        },
+        { _id: req.params.id, user: req.user._id },
+        updateData,
+        { new: true },
       )
         .populate("user likes", "avatar username fullname")
         .populate({
@@ -222,14 +284,12 @@ const postCtrl = {
         msg: "Post updated successfully.",
         newPost: {
           ...post._doc,
-          content,
-          images,
-          address,
-          location,
-          background,
-          textStyle,
+          ...updateData,
         },
       });
+
+      // Handle Mentions after response
+      handleMentions(content, req.user, `/post/${post._id}`);
     } catch (err) {
       return res.status(500).json({ msg: err.message });
     }

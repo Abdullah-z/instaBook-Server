@@ -57,6 +57,7 @@ const postSchema = new Schema(
       },
     ],
     hashtags: [{ type: String, lowercase: true, index: true }],
+    isEdited: { type: Boolean, default: false },
   },
   {
     timestamps: true,

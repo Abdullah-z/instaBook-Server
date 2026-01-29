@@ -13,10 +13,11 @@ const commentSchema = new Schema(
     user: { type: mongoose.Types.ObjectId, ref: "user" },
     postId: mongoose.Types.ObjectId,
     postUserId: mongoose.Types.ObjectId,
+    isEdited: { type: Boolean, default: false },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("comment", commentSchema);
