@@ -375,6 +375,20 @@ const postCtrl = {
 
       const posts = await Posts.aggregate([
         { $match: { user: { $nin: newArr } } },
+        {
+          $lookup: {
+            from: "users",
+            localField: "user",
+            foreignField: "_id",
+            as: "userDetails",
+          },
+        },
+        { $unwind: "$userDetails" },
+        {
+          $match: {
+            "userDetails.isPrivate": { $ne: true },
+          },
+        },
         { $sample: { size: Number(num) } },
       ]);
 
@@ -640,9 +654,9 @@ const postCtrl = {
         req.query,
       ).paginating();
 
-      const posts = await features.query
+      let posts = await features.query
         .sort("-createdAt")
-        .populate("user likes", "avatar username fullname followers")
+        .populate("user likes", "avatar username fullname followers isPrivate")
         .populate({
           path: "comments",
           populate: {
@@ -651,15 +665,29 @@ const postCtrl = {
           },
         });
 
-      res.json({
-        msg: "Success",
-        result: posts.length,
-        posts,
-      });
-    } catch (err) {
-      return res.status(500).json({ msg: err.message });
-    }
+     // Filter out posts from private accounts that requestor doesn't follow
+     posts = posts.filter(post => {
+         if(!post.user) return false;
+         if(post.user._id.toString() === req.user._id.toString()) return true; // My posts
+         if(req.user.following.includes(post.user._id)) return true; // Followed users
+         
+         // If I don't follow them, check if they are private
+         if(post.user.isPrivate) return false; 
+         
+         return true;
+     });
+
+     res.json({
+         msg: "Success",
+         result: posts.length,
+         posts
+     });
+   } catch (err) {
+       return res.status(500).json({ msg: err.message });
+   }
   },
+
+   },
 };
 
 module.exports = postCtrl;
