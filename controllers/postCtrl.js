@@ -291,6 +291,20 @@ const postCtrl = {
 
   getUserPosts: async (req, res) => {
     try {
+      const targetUser = await Users.findById(req.params.id);
+      if (!targetUser)
+        return res.status(400).json({ msg: "User does not exist." });
+
+      // Check if user is private and if requester is following or is self
+      // Note: 'followers' array contains ObjectIds of people following 'targetUser'
+      // We check if req.user._id is in targetUser.followers OR req.user._id == targetUser._id
+      const isMe = req.params.id === req.user._id.toString();
+      const isFollowing = targetUser.followers.includes(req.user._id);
+
+      if (targetUser.isPrivate && !isMe && !isFollowing) {
+        return res.status(403).json({ msg: "This account is private." });
+      }
+
       const { media_type } = req.query;
       let filter = { user: req.params.id, isStory: { $ne: true } };
 

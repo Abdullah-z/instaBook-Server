@@ -132,6 +132,12 @@ exports.getSharedLocations = async (req, res) => {
         query.user = targetUserId;
       } else {
         query.$or = [
+          // Public locations: MUST NOT be from private users
+          // Current query structure for 'user' population is needed to verify 'isPrivate'
+          // MongoDB simple query can't easily filter based on populated fields without aggregation.
+          // However, we can use the populated user object in the 'find' result to filter in memory
+          // OR better, we simply rely on the fact that if a user is PRIVATE, they shouldn't be sharing with 'public' visibility.
+          // But to be safe, we can enforce:
           { visibility: "public" },
           { visibility: "friends", user: { $in: followingIds } },
           { user: req.user._id }, // Always include self
@@ -156,8 +162,19 @@ exports.getSharedLocations = async (req, res) => {
       try {
         console.log(`[Location Fetch] Query:`, JSON.stringify(query));
         locations = await Location.find(query)
-          .populate("user", "username fullname avatar")
+          .populate("user", "username fullname avatar isPrivate")
           .limit(100);
+
+        // Safety Filter: Remove items where visibility is 'public' BUT user is private and NOT followed
+        // This ensures private users' locations don't leak via 'public' setting if they accidentally set it
+        locations = locations.filter((loc) => {
+          if (!loc.user) return false;
+          if (loc.user._id.toString() === req.user._id.toString()) return true; // Self is always ok
+          if (followingIds.includes(loc.user._id)) return true; // Followed users ok
+          if (loc.user.isPrivate) return false; // Private users NOT in following list -> Block
+          return true; // Public users ok
+        });
+
         console.log(
           `[Location Fetch] Active sharing found: ${locations.length} (Time: ${
             Date.now() - start
@@ -219,8 +236,17 @@ exports.getSharedLocations = async (req, res) => {
         }
 
         shoutouts = await Shoutout.find(shoutoutQuery)
-          .populate("user", "username fullname avatar")
+          .populate("user", "username fullname avatar isPrivate")
           .limit(50);
+
+        shoutouts = shoutouts.filter((s) => {
+          if (!s.user) return false;
+          if (s.user._id.toString() === req.user._id.toString()) return true;
+          if (followingIds.includes(s.user._id)) return true;
+          if (s.user.isPrivate) return false;
+          return true;
+        });
+
         console.log(`[Location Fetch] Shoutouts found: ${shoutouts.length}`);
       } catch (err) {
         console.error("[Location Fetch] Shoutout error:", err);
@@ -327,6 +353,7 @@ exports.getSharedLocations = async (req, res) => {
           "userDetails.fullname": 1,
           "userDetails.avatar": 1,
           "userDetails._id": 1,
+          "userDetails.isPrivate": 1,
         },
       });
 
@@ -349,7 +376,11 @@ exports.getSharedLocations = async (req, res) => {
           (item) =>
             item.latestPost &&
             item.latestPost.location &&
-            item.latestPost.location.coordinates,
+            item.latestPost.location.coordinates &&
+            (!item.userDetails.isPrivate || // Include if NOT private
+              allRelevantIds.some(
+                (id) => id.toString() === item.userDetails._id.toString(),
+              )), // OR if following/self
         )
         .map((item) => {
           const p = item.latestPost;

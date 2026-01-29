@@ -82,10 +82,26 @@ const userSchema = new Schema(
         ref: "user",
       },
     ],
+    isPrivate: {
+      type: Boolean,
+      default: false,
+    },
+    followRequests: [
+      {
+        type: mongoose.Types.ObjectId,
+        ref: "user",
+      },
+    ],
+    sentFollowRequests: [
+      {
+        type: mongoose.Types.ObjectId,
+        ref: "user",
+      },
+    ],
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("user", userSchema);

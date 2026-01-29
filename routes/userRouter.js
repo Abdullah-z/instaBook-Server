@@ -10,6 +10,8 @@ router.patch("/user", auth, userCtrl.updateUser);
 
 router.patch("/user/:id/follow", auth, userCtrl.follow);
 router.patch("/user/:id/unfollow", auth, userCtrl.unfollow);
+router.patch("/user/:id/accept_request", auth, userCtrl.acceptFollowRequest);
+router.patch("/user/:id/reject_request", auth, userCtrl.rejectFollowRequest);
 
 router.get("/suggestionsUser", auth, userCtrl.suggestionsUser);
 
