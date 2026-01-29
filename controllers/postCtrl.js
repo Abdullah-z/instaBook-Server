@@ -665,29 +665,27 @@ const postCtrl = {
           },
         });
 
-     // Filter out posts from private accounts that requestor doesn't follow
-     posts = posts.filter(post => {
-         if(!post.user) return false;
-         if(post.user._id.toString() === req.user._id.toString()) return true; // My posts
-         if(req.user.following.includes(post.user._id)) return true; // Followed users
-         
-         // If I don't follow them, check if they are private
-         if(post.user.isPrivate) return false; 
-         
-         return true;
-     });
+      // Filter out posts from private accounts that requestor doesn't follow
+      posts = posts.filter((post) => {
+        if (!post.user) return false;
+        if (post.user._id.toString() === req.user._id.toString()) return true; // My posts
+        if (req.user.following.includes(post.user._id)) return true; // Followed users
 
-     res.json({
-         msg: "Success",
-         result: posts.length,
-         posts
-     });
-   } catch (err) {
-       return res.status(500).json({ msg: err.message });
-   }
+        // If I don't follow them, check if they are private
+        if (post.user.isPrivate) return false;
+
+        return true;
+      });
+
+      res.json({
+        msg: "Success",
+        result: posts.length,
+        posts,
+      });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
   },
-
-   },
 };
 
 module.exports = postCtrl;
