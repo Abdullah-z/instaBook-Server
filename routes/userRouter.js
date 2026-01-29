@@ -5,6 +5,7 @@ const userCtrl = require("../controllers/userCtrl");
 router.get("/search", auth, userCtrl.searchUser);
 
 router.get("/user/:id", auth, userCtrl.getUser);
+router.get("/user_username/:username", auth, userCtrl.getUserByUsername);
 
 router.patch("/user", auth, userCtrl.updateUser);
 

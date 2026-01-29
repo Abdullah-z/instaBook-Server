@@ -35,6 +35,25 @@ const userCtrl = {
     }
   },
 
+  getUserByUsername: async (req, res) => {
+    try {
+      const user = await Users.findOne({ username: req.params.username })
+        .select("-password")
+        .populate(
+          "followers following followRequests sentFollowRequests",
+          "-password",
+        );
+
+      if (!user) {
+        return res.status(400).json({ msg: "requested user does not exist." });
+      }
+
+      res.json({ user });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+
   updateUser: async (req, res) => {
     try {
       const {
