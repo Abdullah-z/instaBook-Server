@@ -20,6 +20,7 @@ router.patch("/post/:id/unlike", auth, postCtrl.unLikePost);
 router.patch("/post/:id/vote", auth, postCtrl.votePoll);
 
 router.patch("/post/:id/report", auth, postCtrl.reportPost);
+router.post("/post/:id/share", auth, postCtrl.sharePost);
 
 router.get("/user_posts/:id", auth, postCtrl.getUserPosts);
 

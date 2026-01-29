@@ -170,6 +170,13 @@ const postCtrl = {
         .sort("-createdAt")
         .populate("user likes", "avatar username fullname followers")
         .populate({
+          path: "sharedPost",
+          populate: {
+            path: "user",
+            select: "avatar username fullname",
+          },
+        })
+        .populate({
           path: "comments",
           populate: {
             path: "user likes ",
@@ -384,7 +391,11 @@ const postCtrl = {
       }
 
       const { media_type } = req.query;
-      let filter = { user: req.params.id, isStory: { $ne: true } };
+      let filter = {
+        user: req.params.id,
+        isStory: { $ne: true },
+        sharedPost: { $exists: false },
+      };
 
       const youtubeRegex = /youtube\.com|youtu\.be/;
 
@@ -425,6 +436,13 @@ const postCtrl = {
           populate: {
             path: "user likes ",
             select: "-password",
+          },
+        })
+        .populate({
+          path: "sharedPost",
+          populate: {
+            path: "user",
+            select: "avatar username fullname",
           },
         });
 
@@ -736,6 +754,13 @@ const postCtrl = {
         .sort("-createdAt")
         .populate("user likes", "avatar username fullname followers isPrivate")
         .populate({
+          path: "sharedPost",
+          populate: {
+            path: "user",
+            select: "avatar username fullname",
+          },
+        })
+        .populate({
           path: "comments",
           populate: {
             path: "user likes ",
@@ -760,6 +785,66 @@ const postCtrl = {
         result: posts.length,
         posts,
       });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+  sharePost: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { content } = req.body;
+
+      const post = await Posts.findById(id);
+      if (!post) return res.status(400).json({ msg: "Post does not exist." });
+
+      const newPost = new Posts({
+        content,
+        user: req.user._id,
+        sharedPost: id,
+      });
+
+      await newPost.save();
+
+      const populatedPost = await Posts.findById(newPost._id)
+        .populate("user", "avatar username fullname")
+        .populate({
+          path: "sharedPost",
+          populate: {
+            path: "user",
+            select: "avatar username fullname",
+          },
+        });
+
+      res.json({
+        msg: "Shared successfully!",
+        newPost: populatedPost,
+      });
+
+      // Notify original author
+      if (post.user.toString() !== req.user._id.toString()) {
+        const msg = {
+          id: req.user._id,
+          text: "shared your post.",
+          recipients: [post.user],
+          url: `/post/${newPost._id}`,
+          content: content || "",
+          image: req.user.avatar,
+        };
+
+        const notify = new Notifies(msg);
+        await notify.save();
+
+        const { sendPushNotification } = require("../socketServer");
+        const originalAuthor = await Users.findById(post.user);
+        if (originalAuthor && originalAuthor.pushToken) {
+          await sendPushNotification(
+            originalAuthor._id,
+            req.user.username,
+            "shared your post.",
+            { url: `/post/${newPost._id}` },
+          );
+        }
+      }
     } catch (err) {
       return res.status(500).json({ msg: err.message });
     }

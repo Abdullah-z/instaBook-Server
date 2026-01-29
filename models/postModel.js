@@ -58,6 +58,10 @@ const postSchema = new Schema(
     ],
     hashtags: [{ type: String, lowercase: true, index: true }],
     isEdited: { type: Boolean, default: false },
+    sharedPost: {
+      type: mongoose.Types.ObjectId,
+      ref: "post",
+    },
     createdAt: Date,
     updatedAt: Date,
   },
