@@ -1,5 +1,6 @@
-const Notifies = require('../models/notifyModel');
-
+const Notifies = require("../models/notifyModel");
+const Users = require("../models/userModel");
+const { sendPushNotification } = require("../socketServer");
 
 const notifyCtrl = {
   createNotify: async (req, res) => {
@@ -19,6 +20,27 @@ const notifyCtrl = {
       });
 
       await notify.save();
+
+      // Send Push Notifications to all recipients
+      try {
+        const users = await Users.find({ _id: { $in: recipients } }).select(
+          "pushToken username",
+        );
+        for (const targetUser of users) {
+          if (targetUser.pushToken) {
+            console.log(`[Push] Sending to ${targetUser.username}...`);
+            await sendPushNotification(
+              targetUser._id,
+              req.user.username,
+              text,
+              { url, id },
+            );
+          }
+        }
+      } catch (pushErr) {
+        console.error("❌ Push Notification failed in createNotify:", pushErr);
+      }
+
       return res.json({ notify });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
@@ -55,7 +77,7 @@ const notifyCtrl = {
         { _id: req.params.id },
         {
           isRead: true,
-        }
+        },
       );
 
       return res.json({ notifies });
