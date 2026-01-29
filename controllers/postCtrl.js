@@ -249,28 +249,49 @@ const postCtrl = {
         createdAt,
       } = req.body;
 
-      const updateData = {
-        content,
-        images,
-        address,
-        location,
-        background,
-        textStyle,
-        hashtags: content
-          ? content.match(/#(\w+)/g)?.map((tag) => tag.slice(1).toLowerCase())
-          : [],
-        isEdited: true,
-      };
+      const post = await Posts.findOne({
+        _id: req.params.id,
+        user: req.user._id,
+      });
+      if (!post)
+        return res.status(400).json({ msg: "Post not found or unauthorized." });
 
-      if (createdAt) {
-        updateData.createdAt = new Date(createdAt);
+      post.content = content !== undefined ? content : post.content;
+      post.images = images !== undefined ? images : post.images;
+      post.address = address !== undefined ? address : post.address;
+      post.location = location !== undefined ? location : post.location;
+      post.background = background !== undefined ? background : post.background;
+      post.textStyle = textStyle !== undefined ? textStyle : post.textStyle;
+      post.isEdited = true;
+
+      if (req.body.poll_question) post.poll_question = req.body.poll_question;
+      if (req.body.poll_options) post.poll_options = req.body.poll_options;
+
+      if (content) {
+        post.hashtags =
+          content.match(/#(\w+)/g)?.map((tag) => tag.slice(1).toLowerCase()) ||
+          [];
       }
 
-      const post = await Posts.findOneAndUpdate(
-        { _id: req.params.id, user: req.user._id },
-        updateData,
-        { new: true },
-      )
+      if (createdAt) {
+        const newDate = new Date(createdAt);
+        if (!isNaN(newDate.getTime())) {
+          post.createdAt = newDate;
+          console.log(
+            `[UpdatePost] Overriding createdAt for ${post._id} to: ${post.createdAt}`,
+          );
+        } else {
+          console.error(`[UpdatePost] Invalid date received: ${createdAt}`);
+        }
+      }
+
+      await post.save({ timestamps: false });
+      console.log(
+        `[UpdatePost] Post ${post._id} saved successfully with createdAt: ${post.createdAt}`,
+      );
+
+      // Populate after save for response
+      const updatedPost = await Posts.findById(post._id)
         .populate("user likes", "avatar username fullname")
         .populate({
           path: "comments",
@@ -282,14 +303,11 @@ const postCtrl = {
 
       res.json({
         msg: "Post updated successfully.",
-        newPost: {
-          ...post._doc,
-          ...updateData,
-        },
+        newPost: updatedPost,
       });
 
       // Handle Mentions after response
-      handleMentions(content, req.user, `/post/${post._id}`);
+      handleMentions(content || post.content, req.user, `/post/${post._id}`);
     } catch (err) {
       return res.status(500).json({ msg: err.message });
     }
