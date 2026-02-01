@@ -46,7 +46,7 @@ const postSchema = new Schema(
     background: String,
     textStyle: {
       fontSize: { type: Number, default: 20 },
-      color: { type: String, default: "#000000" },
+      color: { type: String },
       fontWeight: { type: String, default: "normal" },
     },
     poll_question: String,
