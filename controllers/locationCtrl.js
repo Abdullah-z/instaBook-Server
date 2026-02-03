@@ -61,8 +61,15 @@ exports.getSharedLocations = async (req, res) => {
   );
   const start = Date.now();
   try {
-    const { lat, lon, radius, targetUserId, timePeriod, typeFilter } =
-      req.query;
+    const {
+      lat,
+      lon,
+      radius,
+      targetUserId,
+      timePeriod,
+      typeFilter,
+      audienceFilter,
+    } = req.query;
     console.log(
       `[Location Fetch] Params: lat=${lat}, lon=${lon}, radius=${radius}, typeFilter=${typeFilter}`,
     );
@@ -130,14 +137,10 @@ exports.getSharedLocations = async (req, res) => {
 
       if (targetUserId) {
         query.user = targetUserId;
+      } else if (audienceFilter === "friends") {
+        query.user = { $in: allRelevantIds };
       } else {
         query.$or = [
-          // Public locations: MUST NOT be from private users
-          // Current query structure for 'user' population is needed to verify 'isPrivate'
-          // MongoDB simple query can't easily filter based on populated fields without aggregation.
-          // However, we can use the populated user object in the 'find' result to filter in memory
-          // OR better, we simply rely on the fact that if a user is PRIVATE, they shouldn't be sharing with 'public' visibility.
-          // But to be safe, we can enforce:
           { visibility: "public" },
           { visibility: "friends", user: { $in: followingIds } },
           { user: req.user._id }, // Always include self
@@ -210,14 +213,16 @@ exports.getSharedLocations = async (req, res) => {
           expiresAt: { $gt: new Date() },
         };
 
-        if (!targetUserId) {
+        if (targetUserId) {
+          shoutoutQuery.user = targetUserId;
+        } else if (audienceFilter === "friends") {
+          shoutoutQuery.user = { $in: allRelevantIds };
+        } else {
           shoutoutQuery.$or = [
             { visibility: "public" },
             { visibility: "friends", user: { $in: followingIds } },
             { user: req.user._id },
           ];
-        } else {
-          shoutoutQuery.user = targetUserId;
         }
 
         const r = parseFloat(radius);
@@ -270,10 +275,16 @@ exports.getSharedLocations = async (req, res) => {
       // Filter by user(s)
       if (targetUserId) {
         postMatch.user = new mongoose.Types.ObjectId(targetUserId);
+      } else if (audienceFilter === "friends") {
+        postMatch.user = {
+          $in: allRelevantIds.map((id) => new mongoose.Types.ObjectId(id)),
+        };
       } else {
         const r = parseFloat(radius);
         if (r < 10000) {
-          postMatch.user = { $in: allRelevantIds };
+          postMatch.user = {
+            $in: allRelevantIds.map((id) => new mongoose.Types.ObjectId(id)),
+          };
         }
       }
 
