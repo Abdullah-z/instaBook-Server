@@ -77,6 +77,7 @@ const userCtrl = {
       if (
         avatar &&
         avatar !== currentUser.avatar &&
+        currentUser.avatar &&
         currentUser.avatar.includes("cloudinary")
       ) {
         await deleteImageByUrl(currentUser.avatar);
@@ -85,6 +86,7 @@ const userCtrl = {
       if (
         cover &&
         cover !== currentUser.cover &&
+        currentUser.cover &&
         currentUser.cover.includes("cloudinary")
       ) {
         await deleteImageByUrl(currentUser.cover);
@@ -196,7 +198,10 @@ const userCtrl = {
       const myId = req.user._id;
 
       const me = await Users.findById(myId);
-      if (!me.followRequests.includes(aspiringFollowerId)) {
+      if (
+        !me.followRequests ||
+        !me.followRequests.includes(aspiringFollowerId)
+      ) {
         return res
           .status(400)
           .json({ msg: "No follow request from this user." });
@@ -288,7 +293,7 @@ const userCtrl = {
 
   suggestionsUser: async (req, res) => {
     try {
-      const newArr = [...req.user.following, req.user._id];
+      const newArr = [...(req.user.following || []), req.user._id];
 
       const num = req.query.num || 10;
       const users = await Users.aggregate([

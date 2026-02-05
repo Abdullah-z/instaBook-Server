@@ -161,7 +161,7 @@ const postCtrl = {
     try {
       const features = new APIfeatures(
         Posts.find({
-          user: [...req.user.following, req.user._id],
+          user: [...(req.user.following || []), req.user._id],
           isStory: { $ne: true }, // Exclude stories
         }),
         req.query,
@@ -196,7 +196,7 @@ const postCtrl = {
 
   getStories: async (req, res) => {
     try {
-      const followingIds = [...req.user.following, req.user._id];
+      const followingIds = [...(req.user.following || []), req.user._id];
       // Find stories from users we follow (plus self) that haven't expired
       // Note: check for isStory: true and expiresAt > now (handled by mongo TTL often, but good to be explicit query side too)
       const stories = await Posts.find({
@@ -384,7 +384,8 @@ const postCtrl = {
       // Note: 'followers' array contains ObjectIds of people following 'targetUser'
       // We check if req.user._id is in targetUser.followers OR req.user._id == targetUser._id
       const isMe = req.params.id === req.user._id.toString();
-      const isFollowing = targetUser.followers.includes(req.user._id);
+      const isFollowing =
+        targetUser.followers && targetUser.followers.includes(req.user._id);
 
       if (targetUser.isPrivate && !isMe && !isFollowing) {
         return res.status(403).json({ msg: "This account is private." });
@@ -458,7 +459,7 @@ const postCtrl = {
 
   getPostDiscover: async (req, res) => {
     try {
-      const newArr = [...req.user.following, req.user._id];
+      const newArr = [...(req.user.following || []), req.user._id];
 
       const num = req.query.num || 8;
 
@@ -772,7 +773,8 @@ const postCtrl = {
       posts = posts.filter((post) => {
         if (!post.user) return false;
         if (post.user._id.toString() === req.user._id.toString()) return true; // My posts
-        if (req.user.following.includes(post.user._id)) return true; // Followed users
+        if (req.user.following && req.user.following.includes(post.user._id))
+          return true; // Followed users
 
         // If I don't follow them, check if they are private
         if (post.user.isPrivate) return false;
