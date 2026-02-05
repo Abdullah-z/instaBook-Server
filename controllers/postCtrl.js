@@ -852,6 +852,16 @@ const postCtrl = {
   getTrendingHashtags: async (req, res) => {
     try {
       const trending = await Posts.aggregate([
+        {
+          $lookup: {
+            from: "users",
+            localField: "user",
+            foreignField: "_id",
+            as: "userData",
+          },
+        },
+        { $unwind: "$userData" },
+        { $match: { "userData.isPrivate": { $ne: true } } },
         { $unwind: "$hashtags" },
         {
           $group: {
