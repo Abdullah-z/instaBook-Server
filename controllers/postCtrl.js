@@ -849,6 +849,36 @@ const postCtrl = {
       return res.status(500).json({ msg: err.message });
     }
   },
+  getTrendingHashtags: async (req, res) => {
+    try {
+      const trending = await Posts.aggregate([
+        { $unwind: "$hashtags" },
+        {
+          $group: {
+            _id: "$hashtags",
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { count: -1 } },
+        { $limit: 10 },
+        {
+          $project: {
+            tag: "$_id",
+            count: 1,
+            _id: 0,
+          },
+        },
+      ]);
+
+      res.json({
+        msg: "Success",
+        result: trending.length,
+        trending,
+      });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
 };
 
 module.exports = postCtrl;

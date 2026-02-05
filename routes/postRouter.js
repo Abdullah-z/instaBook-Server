@@ -34,4 +34,6 @@ router.get("/reels", auth, postCtrl.getReels);
 
 router.get("/search_post", auth, postCtrl.searchPost);
 
+router.get("/trending_hashtags", auth, postCtrl.getTrendingHashtags);
+
 module.exports = router;
