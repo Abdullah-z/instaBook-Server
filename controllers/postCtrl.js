@@ -414,7 +414,10 @@ const postCtrl = {
         Posts.find(filter),
         req.query,
       ).paginating();
-      const posts = await features.query.sort("-createdAt");
+      const posts = await features.query
+        .sort("-createdAt")
+        .populate("user", "avatar username fullname followers")
+        .populate("likes", "avatar username fullname");
 
       const totalPosts = await Posts.countDocuments(filter);
 
