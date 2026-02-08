@@ -27,7 +27,7 @@ const messageCtrl = {
         (!recipient && !conversationId) ||
         (!text?.trim() && (!media || media.length === 0) && !call && !location)
       )
-        return;
+        return res.status(400).json({ msg: "Message content is required." });
 
       if (conversationId) {
         // Group Message
@@ -77,8 +77,10 @@ const messageCtrl = {
 
       const newConversation = await Conversations.findOneAndUpdate(
         {
-          isGroup: false,
-          recipients: { $all: [req.user._id, recipient], $size: 2 },
+          $or: [
+            { recipients: [req.user._id, recipient] },
+            { recipients: [recipient, req.user._id] },
+          ],
         },
         {
           recipients: [req.user._id, recipient],
