@@ -44,10 +44,26 @@ const eventCtrl = {
 
   getEvents: async (req, res) => {
     try {
-      // Get upcoming events (events where images are not yet cleaned up - or just all upcoming)
-      const events = await Events.find({
+      const { lat, lon, radius } = req.query;
+
+      const query = {
         date: { $gte: new Date().setHours(0, 0, 0, 0) },
-      })
+      };
+
+      const r = parseFloat(radius);
+      if (lat && lon && r && r < 10000) {
+        query.location = {
+          $nearSphere: {
+            $geometry: {
+              type: "Point",
+              coordinates: [parseFloat(lon), parseFloat(lat)],
+            },
+            $maxDistance: r * 1000,
+          },
+        };
+      }
+
+      const events = await Events.find(query)
         .sort("date")
         .populate("user", "avatar username fullname");
 

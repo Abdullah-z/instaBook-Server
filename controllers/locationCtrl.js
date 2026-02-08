@@ -185,16 +185,17 @@ exports.getSharedLocations = async (req, res) => {
         );
       } catch (err) {
         console.error("[Location Fetch] Error finding locations:", err);
-        // Fallback: If geospatial query fails (index still building?), try without it
+        // Fallback: If geospatial query fails, don't just return everything public
+        // Return only what's absolutely safe (self and friends)
         if (useGeo) {
-          console.log("[Location Fetch] Retrying without geo query...");
+          console.log(
+            "[Location Fetch] Geo query failed. Falling back to friends-only.",
+          );
           delete query.location;
+          query.user = { $in: allRelevantIds };
           locations = await Location.find(query)
             .populate("user", "username fullname avatar")
             .limit(100);
-          console.log(
-            `[Location Fetch] Fallback successful (Time: ${Date.now() - start}ms)`,
-          );
         } else {
           throw err;
         }
