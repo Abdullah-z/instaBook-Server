@@ -12,7 +12,7 @@ app.use(cookieParser());
 // CORS for normal HTTP API requests
 app.use(
   cors({
-    origin: "*", // Allow all origins (or replace with your frontend URL later)
+    origin: (origin, callback) => callback(null, true), // Allow all origins dynamically to support credentials
     credentials: true, // Allow cookies & Authorization headers
   }),
 );

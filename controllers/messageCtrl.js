@@ -77,10 +77,8 @@ const messageCtrl = {
 
       const newConversation = await Conversations.findOneAndUpdate(
         {
-          $or: [
-            { recipients: [req.user._id, recipient] },
-            { recipients: [recipient, req.user._id] },
-          ],
+          isGroup: false,
+          recipients: { $all: [req.user._id, recipient], $size: 2 },
         },
         {
           recipients: [req.user._id, recipient],
