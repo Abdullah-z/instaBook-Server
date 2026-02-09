@@ -141,7 +141,7 @@ const authCtrl = {
       const { email, password } = req.body;
       console.log("Login Called");
 
-      const user = await Users.findOne({ email, role: "user" }).populate(
+      const user = await Users.findOne({ email }).populate(
         "followers following",
         "-password",
       );
