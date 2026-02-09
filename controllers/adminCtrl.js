@@ -3,7 +3,6 @@ const Users = require("../models/userModel");
 const Comments = require("../models/commentModel");
 const { post } = require("../routes/adminRouter");
 
-
 const adminCtrl = {
   getTotalUsers: async (req, res) => {
     try {
@@ -49,8 +48,10 @@ const adminCtrl = {
   getTotalSpamPosts: async (req, res) => {
     try {
       const posts = await Posts.find();
-      
-      const reportedPosts = await posts.filter(post => post.reports.length>2);
+
+      const reportedPosts = await posts.filter(
+        (post) => post.reports.length > 2,
+      );
       const total_spam_posts = reportedPosts.length;
       res.json({ total_spam_posts });
     } catch (err) {
@@ -64,7 +65,7 @@ const adminCtrl = {
         .select("user createdAt reports content")
         .populate({ path: "user", select: "username avatar email" });
       const spamPosts = posts.filter((post) => post.reports.length > 1);
-      
+
       res.json({ spamPosts });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
@@ -80,6 +81,33 @@ const adminCtrl = {
       await Comments.deleteMany({ _id: { $in: post.comments } });
 
       res.json({ msg: "Post deleted successfully." });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+
+  getAllUsers: async (req, res) => {
+    try {
+      const users = await Users.find().select("-password");
+      res.json({ users });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+
+  getAllPosts: async (req, res) => {
+    try {
+      const posts = await Posts.find()
+        .populate("user likes", "avatar username fullname")
+        .populate({
+          path: "comments",
+          populate: {
+            path: "user likes",
+            select: "-password",
+          },
+        })
+        .sort("-createdAt");
+      res.json({ posts });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
     }
