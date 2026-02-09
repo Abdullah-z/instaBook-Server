@@ -1,9 +1,18 @@
 const Posts = require("../models/postModel");
 const Users = require("../models/userModel");
 const Comments = require("../models/commentModel");
-const { post } = require("../routes/adminRouter");
+const { getOnlineUsersCount } = require("../socketServer");
 
 const adminCtrl = {
+  getOnlineUsers: async (req, res) => {
+    try {
+      const total_online_users = getOnlineUsersCount();
+      res.json({ total_online_users });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+
   getTotalUsers: async (req, res) => {
     try {
       const users = await Users.find();

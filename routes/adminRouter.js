@@ -12,5 +12,6 @@ router.delete("/delete_spam_posts/:id", auth, adminCtrl.deleteSpamPost);
 
 router.get("/get_all_users", auth, adminCtrl.getAllUsers);
 router.get("/get_all_posts", auth, adminCtrl.getAllPosts);
+router.get("/get_online_users", auth, adminCtrl.getOnlineUsers);
 
 module.exports = router;

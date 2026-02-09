@@ -484,4 +484,8 @@ const SocketServer = (socket) => {
   //#endregion
 };
 
-module.exports = { SocketServer, sendPushNotification };
+const getOnlineUsersCount = () => {
+  return users.length;
+};
+
+module.exports = { SocketServer, sendPushNotification, getOnlineUsersCount };
