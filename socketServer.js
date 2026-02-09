@@ -12,18 +12,18 @@ const sendPushNotification = async (targetUserId, title, body, data) => {
     const user = await Users.findById(targetUserId);
     if (!user || !user.pushToken) {
       console.log(
-        `⚠️ Push failed: User ${targetUserId} not found or has no token`
+        `⚠️ Push failed: User ${targetUserId} not found or has no token`,
       );
       return;
     }
 
     console.log(
-      `🚀 Preparing push for ${user.username}, Token: ${user.pushToken}`
+      `🚀 Preparing push for ${user.username}, Token: ${user.pushToken}`,
     );
 
     if (!Expo.isExpoPushToken(user.pushToken)) {
       console.error(
-        `❌ ERROR: Push token ${user.pushToken} is not a valid Expo push token for user ${user.username}`
+        `❌ ERROR: Push token ${user.pushToken} is not a valid Expo push token for user ${user.username}`,
       );
       return;
     }
@@ -64,12 +64,11 @@ const sendPushNotification = async (targetUserId, title, body, data) => {
             const receiptIdChunks =
               expo.chunkPushNotificationReceiptIds(receiptIds);
             for (const chunk of receiptIdChunks) {
-              const receipts = await expo.getPushNotificationReceiptsAsync(
-                chunk
-              );
+              const receipts =
+                await expo.getPushNotificationReceiptsAsync(chunk);
               console.log(
                 "📬 Push receipts:",
-                JSON.stringify(receipts, null, 2)
+                JSON.stringify(receipts, null, 2),
               );
 
               // Log any errors
@@ -78,13 +77,13 @@ const sendPushNotification = async (targetUserId, title, body, data) => {
                 if (status === "error") {
                   console.error(
                     `❌ Push failed for ${user.username}: ${message}`,
-                    details
+                    details,
                   );
 
                   // Handle stale tokens
                   if (details && details.error === "DeviceNotRegistered") {
                     console.log(
-                      `🧹 Clearing stale push token for ${user.username} (DeviceNotRegistered)`
+                      `🧹 Clearing stale push token for ${user.username} (DeviceNotRegistered)`,
                     );
                     await Users.findByIdAndUpdate(user._id, { pushToken: "" });
                   }
@@ -140,7 +139,7 @@ const SocketServer = (socket) => {
     admins = admins.filter((user) => user.socketId !== socket.id);
     if (disconnectedUser) {
       console.log(
-        `❌ User disconnected: ${disconnectedUser.id}, Total users: ${users.length}`
+        `❌ User disconnected: ${disconnectedUser.id}, Total users: ${users.length}`,
       );
 
       // Broadcast user offline status to all connected clients
@@ -256,7 +255,7 @@ const SocketServer = (socket) => {
     console.log(`📞 Call request from ${data.from} to ${data.userToCall}`);
     const clients = users.filter((user) => user.id === data.userToCall);
     console.log(
-      `   Found ${clients.length} client(s) for user ${data.userToCall}`
+      `   Found ${clients.length} client(s) for user ${data.userToCall}`,
     );
     if (clients.length > 0) {
       clients.forEach((client) => {
@@ -302,7 +301,7 @@ const SocketServer = (socket) => {
   // Voice Call Events
   socket.on("voiceCallInitiate", (data) => {
     console.log(
-      `📞 Call initiated from ${data.callerName} to ${data.recipientName}`
+      `📞 Call initiated from ${data.callerName} to ${data.recipientName}`,
     );
     const recipient = users.find((user) => user.id === data.recipientId);
     if (recipient) {
@@ -332,11 +331,11 @@ const SocketServer = (socket) => {
         channelId: "voice_call",
         sound: "ringtone.mp3",
         isVideo: data.isVideo,
-      }
+      },
     );
 
     console.log(
-      `push sent for voice call to ${data.recipientId} with sound: ringtone.mp3`
+      `push sent for voice call to ${data.recipientId} with sound: ringtone.mp3`,
     );
   });
 
@@ -365,7 +364,7 @@ const SocketServer = (socket) => {
 
   socket.on("voiceCallEnded", (data) => {
     console.log(
-      `📵 Call ended between ${data.callerId} and ${data.recipientId}`
+      `📵 Call ended between ${data.callerId} and ${data.recipientId}`,
     );
     const recipient = users.find((user) => user.id === data.callerId);
     if (recipient) {
@@ -382,44 +381,78 @@ const SocketServer = (socket) => {
         // Group Chat: Fetch conversation to get recipients
         const conversation = await Conversations.findById(msg.conversation);
         if (conversation) {
-          const recipients = conversation.recipients;
-          recipients.forEach((recipientId) => {
-            // Don't send back to sender
-            if (recipientId.toString() === msg.sender._id.toString()) return;
+          if (conversation.isGroup) {
+            // ONLY if it's actually a group
+            const recipients = conversation.recipients;
+            recipients.forEach((recipientId) => {
+              // Don't send back to sender
+              if (recipientId.toString() === msg.sender._id.toString()) return;
 
-            const user = users.find((u) => u.id === recipientId.toString());
-            if (user) {
-              socket.to(`${user.socketId}`).emit("addMessageToClient", {
-                ...msg,
-                groupName: conversation.groupName,
-              });
-            }
-
-            // Push Notification for all group members (except sender)
-            const messageText =
-              msg.text ||
-              (msg.media && msg.media.length > 0
-                ? "Sent a photo"
-                : "New message");
-
-            sendPushNotification(
-              recipientId.toString(),
-              `${msg.sender.username} in ${conversation.groupName || "Group"}`,
-              messageText,
-              {
-                type: "MESSAGE",
-                conversationId: msg.conversation,
-                senderId: msg.sender._id,
-                senderName: msg.sender.username,
-                senderAvatar: msg.sender.avatar,
-                isGroup: true,
-                groupName: conversation.groupName,
+              const user = users.find((u) => u.id === recipientId.toString());
+              if (user) {
+                socket.to(`${user.socketId}`).emit("addMessageToClient", {
+                  ...msg,
+                  groupName: conversation.groupName,
+                });
               }
+
+              // Push Notification for all group members (except sender)
+              const messageText =
+                msg.text ||
+                (msg.media && msg.media.length > 0
+                  ? "Sent a photo"
+                  : "New message");
+
+              sendPushNotification(
+                recipientId.toString(),
+                `${msg.sender.username} in ${conversation.groupName || "Group"}`,
+                messageText,
+                {
+                  type: "MESSAGE",
+                  conversationId: msg.conversation,
+                  senderId: msg.sender._id,
+                  senderName: msg.sender.username,
+                  senderAvatar: msg.sender.avatar,
+                  isGroup: true,
+                  groupName: conversation.groupName,
+                },
+              );
+            });
+          } else {
+            // It's a 1-on-1 conversation with a conversation ID (common in web app)
+            const recipientId = conversation.recipients.find(
+              (id) => id.toString() !== msg.sender._id.toString(),
             );
-          });
+            if (recipientId) {
+              const user = users.find((u) => u.id === recipientId.toString());
+              if (user) {
+                socket.to(`${user.socketId}`).emit("addMessageToClient", msg);
+              }
+
+              const messageText =
+                msg.text ||
+                (msg.media && msg.media.length > 0
+                  ? "Sent a photo"
+                  : "New message");
+
+              sendPushNotification(
+                recipientId.toString(),
+                `New message from ${msg.sender.username}`,
+                messageText,
+                {
+                  type: "MESSAGE",
+                  conversationId: msg.conversation,
+                  senderId: msg.sender._id,
+                  senderName: msg.sender.username,
+                  senderAvatar: msg.sender.avatar,
+                  isGroup: false,
+                },
+              );
+            }
+          }
         }
       } else {
-        // 1-on-1 Chat
+        // Fallback for legacy 1-on-1 Chat (using recipient field)
         const user = users.find((user) => user.id === msg.recipient);
         if (user) {
           socket.to(`${user.socketId}`).emit("addMessageToClient", msg);
@@ -440,7 +473,7 @@ const SocketServer = (socket) => {
             senderName: msg.sender.username,
             senderAvatar: msg.sender.avatar,
             isGroup: false,
-          }
+          },
         );
       }
     } catch (err) {
