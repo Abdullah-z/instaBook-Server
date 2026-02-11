@@ -315,12 +315,97 @@ const messageCtrl = {
       if (groupName) conversation.groupName = groupName;
       if (groupAvatar) conversation.groupAvatar = groupAvatar;
       if (recipients) {
+        // Validate minimum members (at least 3 total)
+        if (recipients.length < 3) {
+          return res
+            .status(400)
+            .json({ msg: "Group must have at least 3 members" });
+        }
         conversation.recipients = recipients;
       }
 
       await conversation.save();
 
       res.json({ msg: "Update Success!", conversation });
+    } catch (err) {
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+  leaveGroup: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { newAdminId } = req.body;
+
+      const conversation = await Conversations.findOne({
+        _id: id,
+        isGroup: true,
+      });
+
+      if (!conversation)
+        return res.status(404).json({ msg: "Group not found" });
+
+      // Check if user is a member
+      const isMember = conversation.recipients.some(
+        (recipientId) => recipientId.toString() === req.user._id.toString(),
+      );
+
+      if (!isMember) {
+        return res
+          .status(403)
+          .json({ msg: "You are not a member of this group." });
+      }
+
+      // Check if user is admin
+      const isAdmin = conversation.admins.some(
+        (adminId) => adminId.toString() === req.user._id.toString(),
+      );
+
+      const remainingAdmins = conversation.admins.filter(
+        (adminId) => adminId.toString() !== req.user._id.toString(),
+      );
+
+      // Admin transfer logic - if last admin is leaving
+      if (isAdmin && remainingAdmins.length === 0) {
+        if (!newAdminId) {
+          return res.status(400).json({
+            msg: "You are the last admin. Please appoint a new admin before leaving.",
+            requiresAdminTransfer: true,
+          });
+        }
+
+        // Validate new admin is a member (and not the leaving user)
+        const isMember = conversation.recipients.some(
+          (recipientId) => recipientId.toString() === newAdminId.toString(),
+        );
+
+        if (!isMember || newAdminId.toString() === req.user._id.toString()) {
+          return res
+            .status(400)
+            .json({ msg: "New admin must be an existing member" });
+        }
+
+        // Set new admin
+        conversation.admins = [newAdminId];
+      }
+
+      // Remove user from recipients and admins
+      conversation.recipients = conversation.recipients.filter(
+        (recipientId) => recipientId.toString() !== req.user._id.toString(),
+      );
+      conversation.admins = conversation.admins.filter(
+        (adminId) => adminId.toString() !== req.user._id.toString(),
+      );
+
+      // Check minimum member requirement (at least 2 remaining)
+      if (conversation.recipients.length < 2) {
+        return res
+          .status(400)
+          .json({ msg: "Cannot leave. Group must have at least 2 members." });
+      }
+
+      await conversation.save();
+
+      res.json({ msg: "Left group successfully" });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
     }
