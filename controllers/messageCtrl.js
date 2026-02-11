@@ -191,7 +191,8 @@ const messageCtrl = {
 
       const conversations = await features.query
         .sort("-updatedAt")
-        .populate("recipients", "avatar username fullname");
+        .populate("recipients", "avatar username fullname")
+        .select("+groupAvatar +groupName +isGroup +admins"); // Ensure group fields are returned
 
       res.json({
         conversations,
@@ -325,6 +326,9 @@ const messageCtrl = {
       }
 
       await conversation.save();
+
+      // Populate recipients to return full user data
+      await conversation.populate("recipients", "avatar username fullname");
 
       res.json({ msg: "Update Success!", conversation });
     } catch (err) {
