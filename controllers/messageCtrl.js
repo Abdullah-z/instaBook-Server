@@ -302,12 +302,14 @@ const messageCtrl = {
       if (!conversation)
         return res.status(400).json({ msg: "Group not found" });
 
-      // Check if user is a member
-      const isMember = conversation.recipients.includes(req.user._id);
+      // Check if user is a member (need to compare ObjectIds properly)
+      const isMember = conversation.recipients.some(
+        (recipientId) => recipientId.toString() === req.user._id.toString(),
+      );
       if (!isMember) {
         return res
           .status(403)
-          .json({ msg: "You are not a member of this group." + req.user._id });
+          .json({ msg: "You are not a member of this group." });
       }
 
       if (groupName) conversation.groupName = groupName;
