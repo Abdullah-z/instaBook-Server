@@ -88,6 +88,10 @@ const postCtrl = {
           .json({ msg: "Please add photo(s), content, or poll" });
       }
 
+      if (images.length > 8) {
+        return res.status(400).json({ msg: "You can upload up to 8 images." });
+      }
+
       const createFeedPost = async () => {
         const hashtags = content
           ? content.match(/#(\w+)/g)?.map((tag) => tag.slice(1).toLowerCase())
@@ -264,7 +268,15 @@ const postCtrl = {
         return res.status(400).json({ msg: "Post not found or unauthorized." });
 
       post.content = content !== undefined ? content : post.content;
-      post.images = images !== undefined ? images : post.images;
+
+      if (images !== undefined) {
+        if (images.length > 8) {
+          return res
+            .status(400)
+            .json({ msg: "You can upload up to 8 images." });
+        }
+        post.images = images;
+      }
       post.address = address !== undefined ? address : post.address;
       post.location = location !== undefined ? location : post.location;
       post.background = background !== undefined ? background : post.background;
