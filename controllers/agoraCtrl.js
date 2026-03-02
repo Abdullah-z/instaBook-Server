@@ -28,13 +28,14 @@ exports.generateToken = async (req, res) => {
       channelName,
       uid,
       role === "publisher" ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER,
-      privilegeExpiredTs
+      privilegeExpiredTs,
     );
 
     res.status(200).json({
       status: 1,
       msg: "Token generated successfully",
       token,
+      appId: APP_ID,
     });
   } catch (err) {
     console.error("Token generation error:", err);
