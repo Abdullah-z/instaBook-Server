@@ -517,6 +517,53 @@ const postCtrl = {
     }
   },
 
+  getPublicExplore: async (req, res) => {
+    try {
+      const num = req.query.num || 8;
+
+      const posts = await Posts.aggregate([
+        { $match: { isStory: { $ne: true }, sharedPost: { $exists: false } } },
+        {
+          $lookup: {
+            from: "users",
+            localField: "user",
+            foreignField: "_id",
+            as: "user",
+          },
+        },
+        { $unwind: "$user" },
+        {
+          $match: {
+            "user.isPrivate": { $ne: true },
+          },
+        },
+        {
+          $project: {
+            "user.password": 0,
+            "user.role": 0,
+            "user.gender": 0,
+            "user.mobile": 0,
+            "user.address": 0,
+            "user.website": 0,
+            "user.email": 0,
+            "user.saved": 0,
+          },
+        },
+        { $sample: { size: Number(num) } },
+        { $sort: { createdAt: -1 } }
+      ]);
+
+      res.json({
+        msg: "Success",
+        result: posts.length,
+        posts,
+      });
+    } catch (err) {
+      console.error("getPublicExplore error:", err);
+      return res.status(500).json({ msg: err.message });
+    }
+  },
+
   getReels: async (req, res) => {
     try {
       const page = req.query.page * 1 || 1;

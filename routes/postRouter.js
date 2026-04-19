@@ -25,6 +25,7 @@ router.post("/post/:id/share", auth, postCtrl.sharePost);
 router.get("/user_posts/:id", auth, postCtrl.getUserPosts);
 
 router.get("/post_discover", auth, postCtrl.getPostDiscover);
+router.get("/public_explore", postCtrl.getPublicExplore);
 
 router.patch("/savePost/:id", auth, postCtrl.savePost);
 router.patch("/unSavePost/:id", auth, postCtrl.unSavePost);
