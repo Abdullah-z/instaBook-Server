@@ -506,6 +506,11 @@ const postCtrl = {
 
       console.log(`Found ${posts.length} discover posts`);
 
+      await Posts.populate(posts, [
+        { path: "comments", populate: { path: "user likes", select: "-password" } },
+        { path: "likes", select: "avatar username fullname" }
+      ]);
+
       res.json({
         msg: "Success",
         result: posts.length,
@@ -551,6 +556,11 @@ const postCtrl = {
         },
         { $sample: { size: Number(num) } },
         { $sort: { createdAt: -1 } }
+      ]);
+
+      await Posts.populate(posts, [
+        { path: "comments", populate: { path: "user likes", select: "-password" } },
+        { path: "likes", select: "avatar username fullname" }
       ]);
 
       res.json({
@@ -604,6 +614,11 @@ const postCtrl = {
             "user.email": 0, // hide email
           },
         },
+      ]);
+
+      await Posts.populate(posts, [
+        { path: "comments", populate: { path: "user likes", select: "-password" } },
+        { path: "likes", select: "avatar username fullname" }
       ]);
 
       res.json({
