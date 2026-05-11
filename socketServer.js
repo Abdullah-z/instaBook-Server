@@ -375,6 +375,33 @@ const SocketServer = (socket) => {
     }
   });
 
+  socket.on("typing", async (data) => {
+    try {
+      if (data.conversationId) {
+        // Group Chat or 1-on-1 with conversationId
+        const conversation = await Conversations.findById(data.conversationId);
+        if (conversation) {
+          conversation.recipients.forEach((recipientId) => {
+            // Don't send back to sender
+            if (recipientId.toString() === data.senderId.toString()) return;
+            const user = users.find((u) => u.id === recipientId.toString());
+            if (user) {
+              socket.to(`${user.socketId}`).emit("typing", data);
+            }
+          });
+        }
+      } else if (data.recipient) {
+        // Legacy 1-on-1 Chat
+        const user = users.find((u) => u.id === data.recipient);
+        if (user) {
+          socket.to(`${user.socketId}`).emit("typing", data);
+        }
+      }
+    } catch (err) {
+      console.error("Socket typing Error:", err);
+    }
+  });
+
   socket.on("addMessage", async (msg) => {
     try {
       if (msg.conversation) {
